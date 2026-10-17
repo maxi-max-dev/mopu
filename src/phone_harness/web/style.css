@@ -163,3 +163,13 @@ body.focus .tasks,body.focus .statusbar,body.focus .drawer-scrim{display:none}
 @media(max-width:700px){.app-header{gap:8px;padding:0 10px}.app-name{display:none}.tasks{left:10px;top:calc(10px + var(--activity-inset,0px));bottom:10px}.owner-info{max-width:200px}.owner-actions button{padding:5px 9px}.statusbar{gap:9px;padding:0 10px}}
 @media(max-width:600px){.app-header{grid-template-columns:30px minmax(0,1fr) auto;gap:8px}#railHistory{display:none}.owner-info strong{font-size:11px}.owner-actions{gap:4px}.owner-actions button{font-size:10px;padding:5px 7px}.owner-actions .header-icon{padding:0;width:26px}.toolbar{width:44px;top:calc(6px + var(--activity-inset,0px));bottom:6px}.toolbar small{font-size:9px}.toolbar .panel-power{min-height:80px;border-radius:8px}.toolbar .panel-power strong{font-size:10px}.toolbar .panel-power small{font-size:8px}#pause{font-size:0;width:26px;padding:0;height:27px}#pause:before{content:'Ⅱ';font-size:15px}.statusbar{font-size:8px;gap:6px;padding:0 8px}.health-icons{gap:1px}#videoStatus,.statusbar>span:last-child{display:none}.health-row{grid-template-columns:100px 1fr;gap:10px}#panelStatus{max-width:90px;overflow:hidden}.empty-screen p{max-width:230px;margin:8px auto}}
 @media(max-height:650px){.toolbar{gap:1px}.toolbar button{min-height:37px;padding:2px 0}.toolbar button>span{height:21px}.toolbar .panel-power{min-height:72px;padding:5px 2px}.toolbar .panel-glyph{height:22px}.toolbar .divider{margin:2px 16px}.toolbar small{line-height:13px}}
+
+/* Activity remains a small status icon; all history lives in an on-demand dialog. */
+#inputActivityDetail{width:min(520px,calc(100vw - 32px))}
+#inputActivityDetail .settings-row{gap:20px}
+.activity-delivery{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;color:var(--muted);font-size:12px}
+.input-activity-records{max-height:42vh;overflow:auto;border-top:1px solid var(--line)}
+.input-activity-row{padding:15px 2px;border-bottom:1px solid var(--line)}
+.input-activity-head{display:flex;justify-content:space-between;gap:16px}.input-activity-head strong{font-weight:550}
+.input-activity-head time,.input-activity-row small{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+.input-activity-row p{margin:7px 0;color:var(--ink);font-size:12px}.activity-empty{padding:24px 4px;color:var(--muted);line-height:1.7}

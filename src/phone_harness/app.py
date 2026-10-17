@@ -8,6 +8,8 @@ from pathlib import Path
 from aiohttp import web
 from .device import Device
 from .tasks import Queue, atomic, now
+from .input_activity import probe_inputs, InputMonitor
+from .activity import ActivityLog
 
 WEB = Path(__file__).parent / 'web'
 
@@ -30,6 +32,10 @@ class Console:
         self.wanted = False
         self.retries = 0
         self.retry_at = None
+        self.activity = ActivityLog(self.state_dir)
+        self.device.on_action = self.activity.known
+        self.inputs = InputMonitor(self.device, self.activity,
+            lambda: not self.queue.current and not self.op.locked() and not self.device.active_touch and time.time()-self.activity.last_human>3)
 
     def disconnected(self):
         self.queue.invalidate('连接中断；先核实最后动作是否完成')
@@ -44,7 +50,7 @@ class Console:
         telemetry['panel_age'] = round(age, 2) if age is not None else None
         if not self.device.connected or age is None or age > 5:
             telemetry['panel'] = 'unknown'
-        return {**self.queue.snapshot(), 'device': {'connected': self.device.connected,
+        return {**self.queue.snapshot(), 'activity':self.activity.snapshot(self.device.connected), 'device': {'connected': self.device.connected,
             'error': self.device.error, 'telemetry': telemetry, 'health': self.device.health_snapshot(), 'width': self.device.width,
             'height': self.device.height, 'geometry_note':'width/height describe the video stream only. Agent coordinates use mobile_get_screen_size and fresh element bounds; these can be larger.', 'frame_age': round(time.monotonic()-self.device.last_packet, 1) if self.device.last_packet else None},
             'agents': [{'id': k, 'name': a['name'], 'online': time.monotonic()-a['seen'] < 90} for k, a in self.agents.items()],
@@ -85,6 +91,12 @@ class Console:
                 agent['seen'] = time.monotonic()
             return {'waiting': True, 'owner': q.owner, 'head': q.head(), 'instruction': '等待人交回控制权或前序任务结束；可再次调用 phone_wait。不要另开控制通道。'}
         q.check(name, token)
+        if action == 'input_probe':
+            async with self.op:
+                q.check(name, token)
+                result = await probe_inputs(self.device)
+                q.check(name, token)
+                return result
         if action == 'checkpoint':
             q.checkpoint(name, token, payload.get('progress',''), payload.get('next_action',''))
             return {'saved': True}
@@ -126,6 +138,16 @@ class Console:
         q = self.queue
         notice = None
         self.error = None
+        if action == 'activity_preference':
+            if not isinstance(data.get('enabled'),bool): raise ValueError('记录开关需要布尔值')
+            self.activity.data['enabled']=data['enabled'];self.activity.save()
+            return self.snapshot()
+        if action == 'activity_seen':
+            self.activity.data['seen_at']=time.time();self.activity.save()
+            return self.snapshot()
+        if action == 'activity_notify_test':
+            await self.activity.test_notification()
+            return self.snapshot()
         if action == 'connect':
             async with self.transition:
                 async with self.op:
@@ -273,6 +295,11 @@ class Console:
                     if self.retries < 3: self.retry_at = time.monotonic() + 30 * self.retries
                     else: self.queue.event('三次连接恢复未成功，请检查 USB 后点击重连')
 
+    async def notification_loop(self):
+        while True:
+            await self.activity.tick(self.device.connected)
+            await asyncio.sleep(1)
+
 
 @web.middleware
 async def secure(request, handler):
@@ -388,6 +415,8 @@ async def serve(config, state_dir):
     c.monitor = asyncio.create_task(c.monitor_loop())
     panel_monitor = asyncio.create_task(c.panel_loop())
     activity_monitor = asyncio.create_task(c.activity_loop())
+    input_monitor = asyncio.create_task(c.inputs.run())
+    notifications = asyncio.create_task(c.notification_loop())
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGTERM, signal.SIGINT):
@@ -398,7 +427,9 @@ async def serve(config, state_dir):
         c.monitor.cancel()
         panel_monitor.cancel()
         activity_monitor.cancel()
-        await asyncio.gather(c.monitor, panel_monitor, activity_monitor, return_exceptions=True)
+        input_monitor.cancel()
+        notifications.cancel()
+        await asyncio.gather(c.monitor, panel_monitor, activity_monitor, input_monitor, notifications, return_exceptions=True)
         c.queue.invalidate('服务结束，等待手动恢复')
         async with c.op: await c.device.close()
         await asyncio.gather(*(ws.close() for ws in list(c.device.watchers)), return_exceptions=True)

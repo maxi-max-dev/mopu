@@ -139,3 +139,7 @@ The right-hand lamp/button reports the **physical internal display**, separately
 The panel monitor reads system metadata approximately every 1.5 seconds, independently of long assistant actions; the UI polls every second. Samples older than five seconds and disconnected sessions show unknown. This is a system readback, not a camera or optical measurement, and flashes shorter than the polling interval may be missed.
 
 The phone stays centered in the whole window. The task drawer starts collapsed and never pushes the picture sideways; on narrow windows it overlays temporarily, with covered phone input disabled until you close it. Tools follow the picture’s right edge. The full phone picture fits without cropping; focus view gives it more height while keeping takeover visible. The rotate button requests native Android portrait/landscape while you own control. Some apps/lock screens enforce an orientation; the console reports that case instead of claiming a successful switch.
+
+### Activity records (0.8 local preview)
+
+A small status icon opens source-labelled, merged action records. Personal notifications use a private executable hook, a 10-second merge window, persistent event IDs and a 5-minute cooldown. Physical calibration is required before external-input alerts can be enabled. See [coverage, configuration and current validation limits](docs/ACTIVITY.md).
