@@ -62,6 +62,33 @@ function renderPanel(){
  if(panel!=='on'&&$('toast').textContent==='实体屏幕亮着，身边的人可以看到。点右侧指示灯可息屏。')$('toast').hidden=true;
  previousPanel=panel;
 }
+$('inputActivityStatus').onclick=async()=>{renderInputActivity();show('inputActivityDetail');await control('activity_seen');};
+$('inputActivityEnabled').onchange=()=>control('activity_preference',{enabled:$('inputActivityEnabled').checked});
+$('inputNotifyTest').onclick=()=>control('activity_notify_test');
+function renderInputActivity(){
+ const a=state?.activity||{}, online=state?.device.connected&&performance.now()-stateReceivedAt<=3500;
+ const names={disabled:'记录已关闭',offline:'离线 · 无法监测',probing:'正在核实输入通道',unavailable:'输入通道不可用',listening:a.verified?'正在监听本体输入':'通道可读 · 待实体触摸实测'};
+ const status=!a.enabled?'disabled':!online?'offline':a.status||'unavailable';
+ const label=names[status]||'状态待确认',icon=$('inputActivityStatus');
+ icon.className='health-icon '+(a.unread?'alert':status==='listening'&&a.verified?'good':'unknown');
+ icon.title=label+' · 点击查看活动记录';icon.setAttribute('aria-label','手机活动：'+label+(a.unread?' · 有新设备输入':''));
+ $('inputActivityState').textContent=label;$('inputActivityEnabled').checked=!!a.enabled;$('inputActivityEnabled').disabled=controlBusy;
+ $('inputActivityHint').textContent=a.error||(!a.verified?'正式告警尚未启用。完成实体触摸与远程输入对照后才能确认来源。':'只在远程人工与助手均未操作时提醒；无法判断操作者身份。');
+ const test=a.test?.status;
+ $('inputDeliveryState').textContent=!a.notifications_configured?'飞书未配置':test==='sent'?'飞书测试已发送':test==='unknown'?'上次投递结果未知，不自动重发':test==='failed'?'飞书测试失败':test==='sending'?'飞书测试发送中':'飞书通道已配置';
+ $('inputNotifyTest').disabled=controlBusy||!a.notifications_configured||['sent','sending','unknown'].includes(test);
+ const kinds={tap:'点击',swipe:'滑动',long_press:'长按',double_tap:'双击',key:'导航按键',text:'文字输入',app:'打开应用或链接',power:'电源键',volume:'音量键'};
+ const notices={pending:'合并记录中',sending:'提醒发送中',sent:'已发送飞书提醒',failed:'提醒失败',unknown:'投递结果未知',cooldown:'冷却期间 · 仅记录',held_unverified:'来源待实测 · 未提醒',unconfigured:'未配置通知',expired:'历史事件 · 未补发'};
+ const rows=(a.records||[]).slice().reverse().map(r=>{
+  const row=element('article','input-activity-row'),head=element('div','input-activity-head');
+  head.append(element('strong','',({human:'你的远程操作',agent:'助手操作',device:r.verified?'手机本体输入':'设备输入 · 待确认'})[r.source]||'未知来源'),element('time','',new Date(r.first*1000).toLocaleTimeString('zh-CN',{hour12:false})));
+  row.append(head,element('p','',Object.entries(r.counts).map(([k,v])=>(kinds[k]||'操作')+' '+v+' 次').join(' · ')));
+  const note=r.source==='device'?(r.idle?(notices[r.notification]||'已记录'):'远程操作期间 · 仅记录'):'输入已发出，不代表任务完成';
+  row.append(element('small','',note));return row;
+ });
+ if(!rows.length)rows.push(element('p','activity-empty','尚无活动记录。开启后记录新操作。'));
+ $('inputActivityRecords').replaceChildren(...rows);
+}
 let healthTab='audio', previousActivity='';
 const healthNames={audio:'静音细项',battery:'充电与电池',verified:'最后核验时间',privacy:'摄像头、麦克风与闪光灯'};
 for(const key of Object.keys(healthNames))$(key+'Status').onclick=()=>openHealth(key);
@@ -177,6 +204,7 @@ function renderQueue(){
  if($('taskDetail').open&&detailId)detail(detailId);
 }
 function render(){
+ renderInputActivity();
  if(!state)return;$('closePauses').checked=state.settings.close_pauses;const connected=state.device.connected, owner=state.owner, telemetry=state.device.telemetry||{}, current=state.tasks.find(task=>task.id===state.current), head=state.tasks.find(task=>['queued','paused','running'].includes(task.status));
  if(!connected)actionOverlay.clear();
  $('connection').textContent=connected?'USB 已连接':'USB 未连接';$('usbDot').className=connected?'online':'';
@@ -231,5 +259,5 @@ function pointerUp(event){if(pointer!==event.pointerId)return;pointer=null;if(ha
 canvas.addEventListener('pointerup',pointerUp);canvas.addEventListener('pointercancel',pointerUp);canvas.oncontextmenu=event=>event.preventDefault();
 canvas.addEventListener('keydown',event=>{if(!hasControl())return;const codes={Escape:4,Home:3,Enter:66,Backspace:67,Tab:61,ArrowUp:19,ArrowDown:20,ArrowLeft:21,ArrowRight:22};if(codes[event.key]){event.preventDefault();send({type:'key',code:codes[event.key]});}else if(event.key.length===1&&!event.metaKey&&!event.ctrlKey&&!event.altKey&&!event.isComposing){event.preventDefault();send({type:'text',text:event.key});}});
 setInterval(()=>{fps=frameWindow;frameWindow=0;$('videoStatus').textContent=rendered?'H.264 · '+packetSize.width+' × '+packetSize.height+' · '+(fps?fps+' fps':'静态画面'):'本机视频流';},1000);
-setInterval(()=>{renderPanel();renderHealth();},500);
+setInterval(()=>{renderPanel();renderHealth();if(performance.now()-stateReceivedAt>3500)renderInputActivity();},500);
 poll();if('VideoDecoder'in window)websocket();else{$('connect').disabled=true;toast('当前浏览器不支持 WebCodecs。请用最新版 Chrome 打开此本机地址。');}

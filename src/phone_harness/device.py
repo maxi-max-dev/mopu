@@ -65,6 +65,7 @@ class Device:
         self.health_lock = asyncio.Lock()
         self.action_epoch = 0
         self.touch_feedback = None
+        self.on_action = None
 
     def new_action(self, description, source='human', actor='你'):
         return {'type':'action', 'id':secrets.token_hex(6), 'epoch':self.action_epoch,
@@ -72,6 +73,7 @@ class Device:
 
     async def publish_action(self, cue, phase='sent'):
         if cue and cue['epoch'] == self.action_epoch:
+            if self.on_action: self.on_action(cue,phase)
             await self.broadcast(json.dumps({**cue,'phase':phase,'at':time.time()*1000}))
 
     async def clear_actions(self):
