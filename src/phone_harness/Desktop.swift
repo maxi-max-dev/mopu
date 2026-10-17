@@ -27,14 +27,14 @@ final class PhoneApp: NSObject, NSApplicationDelegate, WKNavigationDelegate {
         window.title = "Phone Harness"
         window.minSize = NSSize(width:850,height:640)
         window.setFrameAutosaveName("PhoneHarnessWindow")
-        window.appearance = NSAppearance(named:.darkAqua)
+        window.appearance = NSAppearance(named:.aqua)
         let config = WKWebViewConfiguration()
         config.websiteDataStore = .nonPersistent()
         web = WKWebView(frame:window.contentView!.bounds,configuration:config)
         web.autoresizingMask = [.width,.height]; web.navigationDelegate = self
         window.contentView = web
         window.center(); window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps:true)
-        web.loadHTMLString("<body style='background:#0c101b;color:#b9c8df;font:18px -apple-system;padding:60px'>正在启动 Phone Harness…</body>",baseURL:nil)
+        web.loadHTMLString("<body style='background:#f8f9f7;color:#72776f;font:18px -apple-system;padding:60px'>正在启动 Phone Harness…</body>",baseURL:nil)
         DispatchQueue.global(qos:.userInitiated).async { self.startConsole() }
     }
     @objc func reloadConsole(_ sender:Any?) {
