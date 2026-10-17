@@ -1,5 +1,9 @@
 # Phone Harness：把手机交给你正在使用的助手
 
+[English](README.md) · [预览版下载](https://github.com/maxi-max-dev/phone-harness/releases) · [反馈问题](https://github.com/maxi-max-dev/phone-harness/issues/new/choose)
+
+**MIT 开源预览版。** 当前只建立了限定设备与能力的验证，尚不是全面兼容或长期无人值守的保证。
+
 你给 Codex、Claude Code 或 Jarvis 的任务，仍由那个助手完成。Phone Harness 提供真机画面、操作工具、任务队列和人工接管；你可以随时点「我来操作」，用完再「交回助手」。手机连接时默认息屏和静音，电脑窗口显示实时画面；需要给身边的人看时，也可以主动亮屏。
 
 macOS 有独立软件窗口，不需要浏览器标签页。浏览器入口仍保留给 Linux 或偏好网页的使用者。当前是 0.6.0 测试版：已验一台 Android 真机，尚不支持 Windows，也未证明所有品牌手机兼容。
