@@ -27,13 +27,14 @@ async function control(action, data={}) {
 function show(id){$(id).showModal();}
 document.querySelectorAll('[data-close]').forEach(button=>button.onclick=()=>button.closest('dialog').close());
 document.querySelectorAll('dialog').forEach(dialog=>dialog.addEventListener('click',event=>{if(event.target===dialog){const rect=dialog.getBoundingClientRect();if(event.clientX<rect.left||event.clientX>rect.right||event.clientY<rect.top||event.clientY>rect.bottom)dialog.close();}}));
-function taskPane(open){$('taskPane').classList.toggle('collapsed',!open);$('toggleTasks').setAttribute('aria-expanded',String(open));$('toggleTasks').setAttribute('aria-label',open?'收起任务队列':'展开任务队列');$('toggleTasks').title=open?'收起任务队列':'展开任务队列';}
+function taskPane(open){$('taskPane').classList.toggle('collapsed',!open);$('toggleTasks').setAttribute('aria-expanded',String(open));$('toggleTasks').setAttribute('aria-label',open?'收起任务队列':'展开任务队列');$('toggleTasks').title=open?'收起任务队列':'展开任务队列';fitVideo();}
 $('toggleTasks').onclick=()=>{document.body.classList.remove('focus');$('focus').setAttribute('aria-pressed','false');taskPane($('taskPane').classList.contains('collapsed'));};
+$('closeTasks').onclick=$('drawerScrim').onclick=()=>{taskPane(false);$('toggleTasks').focus();};
 $('railHistory').onclick=()=>{document.body.classList.remove('focus');$('focus').setAttribute('aria-pressed','false');taskPane(true);showHistory=true;renderQueue();};
 $('queueTab').onclick=()=>{showHistory=false;renderQueue();};
 $('historyTab').onclick=()=>{showHistory=true;renderQueue();};
 $('closePauses').onchange=()=>control('close_preference',{enabled:$('closePauses').checked});
-$('focus').onclick=()=>{const focused=document.body.classList.toggle('focus');$('focus').setAttribute('aria-pressed',String(focused));};
+$('focus').onclick=()=>{const focused=document.body.classList.toggle('focus');$('focus').setAttribute('aria-pressed',String(focused));if(focused)taskPane(false);fitVideo();};
 $('settingsOpen').onclick=()=>show('settings');
 $('integrationOpen').onclick=()=>show('integration');
 for (const action of ['connect','takeover','release','pause','reconnect','rotate']) $(action).onclick=()=>control(action);
@@ -133,13 +134,27 @@ function renderHealth(){
  }
  $('healthContent').replaceChildren(...rows);$('healthNote').textContent=note;
 }
-function fitVideo(){const box=$('viewport');const w=canvas.width,h=canvas.height;if(!w||!h)return;const scale=Math.min((box.clientWidth-8)/w,(box.clientHeight-8)/h);canvas.style.width=Math.max(0,w*scale)+'px';canvas.style.height=Math.max(0,h*scale)+'px';}
+function fitVideo(){
+ const box=$('viewport'), w=canvas.width, h=canvas.height;
+ const gutter=innerWidth<=600?62:88;
+ const scale=w&&h?Math.max(0,Math.min((box.clientWidth-gutter*2)/w,(box.clientHeight-8)/h)):0;
+ const width=w*scale;
+ $('phoneStage').style.setProperty('--activity-inset',box.offsetTop+'px');
+ canvas.style.width=width+'px';canvas.style.height=h*scale+'px';
+ $('phoneTools').style.left=`calc(50% + ${width/2+16}px)`;
+ const open=!$('taskPane').classList.contains('collapsed')&&!document.body.classList.contains('focus');
+ const overlay=open&&(box.clientWidth-width)/2<$('taskPane').offsetWidth+32;
+ document.body.classList.toggle('task-overlay',overlay);
+ $('drawerScrim').hidden=!overlay;
+ box.inert=overlay;$('phoneTools').inert=overlay;
+}
+
 new ResizeObserver(fitVideo).observe($('viewport'));
+document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!$('drawerScrim').hidden&&!document.querySelector('dialog[open]')){event.preventDefault();event.stopPropagation();taskPane(false);$('toggleTasks').focus();}},true);
 document.querySelectorAll('[data-key]').forEach(button=>button.onclick=()=>send({type:'key',code:Number(button.dataset.key)}));
 $('textOpen').onclick=()=>{if(hasControl())show('textDialog');};
 $('textForm').onsubmit=event=>{event.preventDefault();if(send({type:'text',text:$('phoneText').value})){$('textDialog').close();$('phoneText').value='';canvas.focus();}};
 function detail(id){const task=state.tasks.find(task=>task.id===id);if(!task)return;detailId=id;$('detailTitle').textContent=task.title;const box=$('detailContent');box.replaceChildren(element('p','task-id',task.agent_name+' · '+labels[task.status]+' · '+task.id));for(const [label,value]of [['任务要求',task.instruction],['已保存进度',task.checkpoint],['当前动作',task.action],['结果',task.result]]){if(value)box.append(element('h3','',label),element('pre','',value));}if(!$('taskDetail').open)show('taskDetail');}
-$('currentDetail').onclick=()=>detail(state.current);
 function renderQueue(){
  const signature=JSON.stringify([state.tasks,state.agents,showHistory]);if(signature===queueSignature)return;queueSignature=signature;
  const box=$('taskList');box.replaceChildren();
@@ -151,7 +166,7 @@ function renderQueue(){
   const row=element('article','task '+task.status);row.tabIndex=0;row.setAttribute('aria-label',task.title+'，'+labels[task.status]);
   const top=element('div','task-top');top.append(element('span','task-index',String(index+1).padStart(2,'0')),element('span','task-agent',task.agent_name),element('span','task-status',labels[task.status]));row.append(top,element('div','task-title',task.title),element('div','task-action',task.action));
   const controls=element('div','task-controls');
-  function button(text,action,args={}){const b=element('button','',text);b.onclick=event=>{event.stopPropagation();control(action,{id:task.id,...args});};controls.append(b);}
+  function button(text,action,args={}){const b=element('button','',text);b.setAttribute('aria-label',text==='↑'?'上移任务':text==='↓'?'下移任务':text);b.onclick=event=>{event.stopPropagation();control(action,{id:task.id,...args});};controls.append(b);}
   if(['queued','paused'].includes(task.status)){button('↑','move',{direction:'up'});button('↓','move',{direction:'down'});button('优先执行','prioritize');}
   if(['queued','paused','running','blocked'].includes(task.status))button('结束','cancel');
   if(task.status==='blocked')button('重新排队','retry');
@@ -174,8 +189,6 @@ function render(){
  for(const button of document.querySelectorAll('[data-key],#textOpen,#rotate'))button.disabled=!hasControl();
  $('quiet').disabled=!connected;
  canvas.classList.toggle('controllable',hasControl());
- $('currentTitle').textContent=current?.title||(head?'下一项：'+head.title:'没有正在执行的手机任务');$('currentAction').textContent=current?.action||(head?head.agent_name+' · '+head.action:'可手动操作，也可以交给已接入的助手。');$('currentDetail').hidden=!current;
- $('currentTask').hidden=!current&&!head;
  const count=state.tasks.filter(t=>['queued','paused','running','blocked'].includes(t.status)).length;$('queueCount').textContent=count;$('queueCount').hidden=!count;
  $('orientationLabel').textContent=state.device.width>state.device.height?'转竖屏':'转横屏';
  renderPanel();
