@@ -1,0 +1,8 @@
+include README.md README.zh-CN.md LICENSE config.example.json VALIDATION.md
+recursive-include integrations *.js *.mjs *.json *.py *.md
+recursive-include skills *.md
+recursive-include tests *.py *.cjs
+recursive-include .github *.yml
+include CONTRIBUTING.md SECURITY.md THIRD_PARTY.md
+recursive-include docs *.md *.svg *.png
+recursive-include tools *.py *.js

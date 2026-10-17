@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="1600" viewBox="0 0 720 1600">
+<rect width="720" height="1600" fill="#f4f3ee"/>
+<g font-family="-apple-system,BlinkMacSystemFont,Arial,sans-serif" fill="#263932">
+<text x="43" y="52" font-size="24" font-weight="600">9:41</text><path d="M589 39v10m9-18v18m9-24v24" stroke="#263932" stroke-width="5"/><rect x="632" y="30" width="39" height="20" rx="5" fill="none" stroke="#263932" stroke-width="2"/><rect x="637" y="35" width="27" height="10" rx="2"/>
+<text x="45" y="143" font-size="17" letter-spacing="4" fill="#7b8a80">PAPER / 阅读空间</text><circle cx="648" cy="137" r="24" fill="#e3e7dd"/><path d="M638 137h20m-10-10v20" stroke="#506551" stroke-width="2"/>
+<text x="43" y="220" font-size="52" font-weight="600">慢一点，读进去。</text><text x="45" y="264" font-size="22" fill="#7c857c">留住值得反复阅读的想法。</text>
+<rect x="42" y="310" width="636" height="57" rx="17" fill="#e9ebe4"/><circle cx="70" cy="337" r="9" fill="none" stroke="#8c978b" stroke-width="2"/><path d="m77 344 7 7" stroke="#8c978b" stroke-width="2"/><text x="101" y="347" font-size="21" fill="#879083">搜索你的收藏</text>
+<rect x="42" y="402" width="636" height="433" rx="23" fill="#dce4d3"/>
+<defs><clipPath id="tile"><rect x="42" y="402" width="636" height="433" rx="23"/></clipPath></defs>
+<g clip-path="url(#tile)"><circle cx="575" cy="470" r="155" fill="#b3c5ac"/><circle cx="575" cy="470" r="113" fill="#c5d3bb"/><circle cx="575" cy="470" r="70" fill="#dce4d3"/><path d="M42 650q200-160 400-15t310-90v290H42Z" fill="#c3d2bd"/><path d="M42 730q150-160 330-30t320-70v205H42Z" fill="#b2c4ac" opacity=".65"/></g>
+<text x="74" y="449" font-size="16" letter-spacing="2" fill="#5e745a">本周精选 · 01</text><text x="74" y="705" font-size="37" font-weight="500">给注意力，留一点空白</text><text x="76" y="750" font-size="21" fill="#567251">关于专注、时间与生活的尺度。</text><text x="76" y="799" font-size="17" fill="#64795e">8 分钟阅读</text><path d="M620 782h22m-8-8 8 8-8 8" fill="none" stroke="#4e6c47" stroke-width="2"/>
+<text x="44" y="908" font-size="25" font-weight="600">最近收藏</text><text x="614" y="907" font-size="19" fill="#7d897b">全部</text>
+<rect x="43" y="947" width="113" height="116" rx="14" fill="#e2d8c9"/><path d="m67 1027 20-57 39 15-20 57Z" fill="#b8a891"/><path d="m86 976 33 13" stroke="#f2ede3" stroke-width="2"/>
+<text x="183" y="983" font-size="23" font-weight="500">设计是对日常的关照</text><text x="183" y="1023" font-size="19" fill="#7c857c">设计手记 · 6 分钟</text><text x="183" y="1055" font-size="16" fill="#9a9e93">今天 09:12</text>
+<path d="M44 1093h632" stroke="#dfe3d9"/>
+<rect x="43" y="1120" width="113" height="116" rx="14" fill="#d2dde0"/><path d="M61 1211v-49h29v49m10 0v-69h38v69" fill="none" stroke="#8aa2a5" stroke-width="3"/>
+<text x="183" y="1157" font-size="23" font-weight="500">走进一座城市的方式</text><text x="183" y="1196" font-size="19" fill="#7c857c">城市观察 · 12 分钟</text><text x="183" y="1228" font-size="16" fill="#9a9e93">昨天 18:40</text>
+<rect x="43" y="1301" width="633" height="107" rx="17" fill="#e9ebe3"/>
+<text x="70" y="1341" font-size="19" fill="#64745f">每一个被记住的想法，</text><text x="70" y="1377" font-size="19" fill="#64745f">都可能是下一次创作的起点。</text>
+<path d="M0 1471h720" stroke="#dce0d7"/>
+<g font-size="18" text-anchor="middle"><text x="120" y="1522" fill="#476144">收藏</text><text x="360" y="1522" fill="#999f92">探索</text><text x="600" y="1522" fill="#999f92">我的</text></g>
+<rect x="265" y="1570" width="190" height="6" rx="3" fill="#374439"/>
+<text x="360" y="1451" font-size="13" text-anchor="middle" fill="#9a9e94">PHONE HARNESS · 原创合成示例，无真实手机内容</text>
+</g></svg>

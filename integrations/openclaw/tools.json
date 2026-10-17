@@ -1,0 +1,112 @@
+[
+  {
+    "name": "phone_status",
+    "description": "Read phone connection, ownership and task queue. Does not read phone contents.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "phone_submit",
+    "description": "Queue the phone part of your authorized task under your own agent identity. This does not dispatch to another agent.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "instruction": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "title",
+        "instruction"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "phone_wait",
+    "description": "Wait up to 20 seconds for your next task and exclusive phone control. If waiting, stop phone actions and wait again when appropriate. After a new lease always observe before acting.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "phone_tools",
+    "description": "Read actual Mobile MCP tool schemas while holding the phone lease.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "phone_call",
+    "description": "Call a listed phone tool under the current lease. Observe before every input; use fresh coordinates, never refs. On any error observe again, never replay an uncertain input.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "arguments": {
+          "type": "object",
+          "default": {}
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "phone_checkpoint",
+    "description": "Save completed progress and describe the next phone action so the user can understand and interrupt it.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "progress": {
+          "type": "string"
+        },
+        "next_action": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "progress",
+        "next_action"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "phone_finish",
+    "description": "Record verified results or a specific blocker and release the phone. Never claim success from a tool acknowledgement alone.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "result": {
+          "type": "string"
+        },
+        "blocked": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "additionalProperties": false
+    }
+  }
+]

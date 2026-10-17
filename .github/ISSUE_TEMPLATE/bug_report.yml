@@ -1,0 +1,17 @@
+name: Report a control problem
+description: A reproducible phone, ownership or queue problem
+body:
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Host OS, Android version, browser, assistant client and package version. Omit device serials and tokens.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps, expected result and actual result
+      description: Did human takeover stop new input? Did the phone remain quiet and physically dark? Review any screenshots before attaching them.
+    validations:
+      required: true
