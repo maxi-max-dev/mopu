@@ -1,4 +1,4 @@
-# Validation scope — 0.6.1
+# Validation scope — 0.7.0
 
 Local acceptance on 2026-10-17 (Australia/Brisbane). This is a prototype build, not a published service or evidence of adoption.
 
@@ -84,6 +84,14 @@ Local acceptance on 2026-10-17 (Australia/Brisbane). This is a prototype build, 
 - Installed 0.6.1 and reopened the native app while keeping a second viewer connected. Real 720 × 1600 video continued; the native light title bar, new UI version and settings open/close were visually verified. Physical panel remained Off, ownership stayed human and task IDs/statuses were unchanged. No phone input was sent. All 16 installed runtime files and served JavaScript/CSS matched source.
 - 53 Python, 11 action-feedback JavaScript and six adapter tests passed. JavaScript syntax, wheel build and native app compilation passed. The existing aiohttp test fixture emits a non-failing AppKey warning.
 - This version is installed locally for visual review. The published GitHub release remains v0.6.0; no new release or external-use claim is made here.
+
+## Version 0.7 additions
+
+- Reworked the composition around the full window centerline: independent video stage, optional left task drawer, right tools attached 16 px from the video edge, one ownership header and compact status footer. Removed the redundant current-task footer; task progress and detail remain in the queue. No backend or ownership protocol changes.
+- Synthetic browser checks at 1280 × 828, 850 × 618, 850 × 950 and 390 × 844 covered portrait, landscape, open/closed drawers and focus. At 1280 × 828, the portrait center is exactly x=640 with the drawer open or closed, height 750 px (previously 723); focus reaches 776 px while retaining takeover. Landscape is centered at x=640 with width 1104 px and no toolbar overflow. No horizontal overflow observed.
+- Narrow-window drawers use a scrim and inert video/tools. The browser confirmed both inert attributes, hidden controls in the accessibility tree, and Escape restoration. Synthetic task move-up/down, takeover/release, settings and focus controls worked. Device status retains its semantic color on hover. No browser warning/error observed.
+- Installed 0.7.0 into the existing native macOS app. Real USB video decoded, the phone was visually centered, and opening/closing the drawer correctly hid/restored covered phone controls in the native accessibility tree. Task IDs/statuses stayed unchanged, physical panel read Off and ownership remained human. No phone input or task execution was performed during this visual update.
+- 53 Python, 11 action-overlay JavaScript and six OpenClaw adapter tests passed, as did JavaScript syntax, package build and native app compilation. All 16 installed runtime files and served frontend files matched source. Current release remains v0.6.0; 0.7.0 is local for review.
 
 ## Not established
 

@@ -6,7 +6,7 @@ A local Android control console shared by humans and their AI assistants.
 
 **The assistant you give the task to remains its executor.** Codex, Claude Code, Jarvis or another MCP client can use the same phone. This project supplies a screen, tools, task queue and ownership protocol. Model execution stays in the original assistant host; the optional OpenClaw adapter can resume that host's original conversation after human control is returned.
 
-Version 0.6.1 is an **MIT-licensed open-source preview** of a local, single-phone prototype. The current implementation uses Unix file locks and is intended for macOS/Linux; Windows is not supported yet. Real-device acceptance is limited to the device and capabilities listed in `VALIDATION.md`.
+Version 0.7.0 is an **MIT-licensed open-source preview** of a local, single-phone prototype. The current implementation uses Unix file locks and is intended for macOS/Linux; Windows is not supported yet. Real-device acceptance is limited to the device and capabilities listed in `VALIDATION.md`.
 
 ![Phone Harness light console — synthetic demonstration](docs/console-demo.png)
 
@@ -138,4 +138,4 @@ The right-hand lamp/button reports the **physical internal display**, separately
 
 The panel monitor reads system metadata approximately every 1.5 seconds, independently of long assistant actions; the UI polls every second. Samples older than five seconds and disconnected sessions show unknown. This is a system readback, not a camera or optical measurement, and flashes shorter than the polling interval may be missed.
 
-The task drawer is collapsed initially. The full phone picture fits the available height/width without cropping; resize the window or use focus view for more room. The rotate button requests native Android portrait/landscape while you own control. Some apps/lock screens enforce an orientation; the console reports that case instead of claiming a successful switch.
+The phone stays centered in the whole window. The task drawer starts collapsed and never pushes the picture sideways; on narrow windows it overlays temporarily, with covered phone input disabled until you close it. Tools follow the picture’s right edge. The full phone picture fits without cropping; focus view gives it more height while keeping takeover visible. The rotate button requests native Android portrait/landscape while you own control. Some apps/lock screens enforce an orientation; the console reports that case instead of claiming a successful switch.
