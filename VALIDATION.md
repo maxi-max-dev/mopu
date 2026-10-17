@@ -83,6 +83,6 @@ Local acceptance on 2026-10-17 (Australia/Brisbane). This is a prototype build, 
 - Physical USB unplug/replug, cold boot, multi-day unattended operation, Windows, Linux and other Android models are not hardware-accepted.
 - Silent settings are software readbacks, not acoustic measurements; third-party keyboard/app vibration and OEM/emergency audio are not comprehensively tested.
 - Codex/Claude Code require their original host conversation to keep running or be resumed by the user. The optional OpenClaw continuation runs within the original host. The product does not sandbox unrelated raw ADB programs and does not expose a remote Internet endpoint.
-- No public GitHub repository, package registry release, feedback service or user adoption is claimed.
+- Source is published as a GitHub preview at https://github.com/maxi-max-dev/phone-harness. No package registry release, automatic feedback service or user adoption is claimed.
 
 Evidence containing phone UI and local paths is stored privately in the testing host's state directory and excluded from this distributable.

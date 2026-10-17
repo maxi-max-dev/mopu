@@ -1,10 +1,12 @@
 # Phone Harness
 
+[中文](README.zh-CN.md) · [Preview releases](https://github.com/maxi-max-dev/phone-harness/releases) · [Report an issue](https://github.com/maxi-max-dev/phone-harness/issues/new/choose)
+
 A local Android control console shared by humans and their AI assistants.
 
 **The assistant you give the task to remains its executor.** Codex, Claude Code, Jarvis or another MCP client can use the same phone. This project supplies a screen, tools, task queue and ownership protocol. Model execution stays in the original assistant host; the optional OpenClaw adapter can resume that host's original conversation after human control is returned.
 
-Version 0.6.0 is a local, single-phone prototype. The current implementation uses Unix file locks and is intended for macOS/Linux; Windows is not supported yet. Real-device acceptance is limited to the device and capabilities listed in `VALIDATION.md`.
+Version 0.6.0 is an **MIT-licensed open-source preview** of a local, single-phone prototype. The current implementation uses Unix file locks and is intended for macOS/Linux; Windows is not supported yet. Real-device acceptance is limited to the device and capabilities listed in `VALIDATION.md`.
 
 ![Phone Harness Graphite console — synthetic demonstration](docs/console-demo.png)
 
