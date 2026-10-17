@@ -6,9 +6,9 @@ A local Android control console shared by humans and their AI assistants.
 
 **The assistant you give the task to remains its executor.** Codex, Claude Code, Jarvis or another MCP client can use the same phone. This project supplies a screen, tools, task queue and ownership protocol. Model execution stays in the original assistant host; the optional OpenClaw adapter can resume that host's original conversation after human control is returned.
 
-Version 0.6.0 is an **MIT-licensed open-source preview** of a local, single-phone prototype. The current implementation uses Unix file locks and is intended for macOS/Linux; Windows is not supported yet. Real-device acceptance is limited to the device and capabilities listed in `VALIDATION.md`.
+Version 0.6.1 is an **MIT-licensed open-source preview** of a local, single-phone prototype. The current implementation uses Unix file locks and is intended for macOS/Linux; Windows is not supported yet. Real-device acceptance is limited to the device and capabilities listed in `VALIDATION.md`.
 
-![Phone Harness Graphite console — synthetic demonstration](docs/console-demo.png)
+![Phone Harness light console — synthetic demonstration](docs/console-demo.png)
 
 *Illustrative UI preview. The phone screen and task data are synthetic; no real phone content is shown.*
 
@@ -126,7 +126,7 @@ node --test integrations/openclaw/bridge.test.mjs
 python3 -m pip wheel --no-deps . -w dist
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the no-device UI preview and contribution workflow, [SECURITY.md](SECURITY.md) for trust boundaries, and [THIRD_PARTY.md](THIRD_PARTY.md) for dependency licenses. The Graphite UI direction and editable design brief are in [docs/DESIGN.md](docs/DESIGN.md).
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the no-device UI preview and contribution workflow, [SECURITY.md](SECURITY.md) for trust boundaries, and [THIRD_PARTY.md](THIRD_PARTY.md) for dependency licenses. The light workspace direction and editable design brief are in [docs/DESIGN.md](docs/DESIGN.md).
 
 Report behavior through the included issue templates. Include your OS, Android version, browser, what you expected, actual behavior, and whether human takeover worked. Do not attach a serial, endpoint token, queue file, full phone screenshot or private task contents without reviewing it first. No feedback is uploaded by the application.
 

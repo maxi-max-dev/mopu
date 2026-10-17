@@ -1,4 +1,4 @@
-# Validation scope — 0.6.0
+# Validation scope — 0.6.1
 
 Local acceptance on 2026-10-17 (Australia/Brisbane). This is a prototype build, not a published service or evidence of adoption.
 
@@ -76,6 +76,14 @@ Local acceptance on 2026-10-17 (Australia/Brisbane). This is a prototype build, 
 - Installed 0.6.0 into the existing local macOS app and reloaded its live viewer. Native UI reported 0.6.0 and decoded the real 720 × 1600 stream. Settings opened/closed successfully. Physical panel remained Off, ownership stayed human and existing task statuses were unchanged. All 16 installed runtime files and served frontend files match source.
 - 53 Python tests, 11 action-overlay JavaScript tests and six OpenClaw adapter tests passed; syntax checks and wheel build passed. CI configuration was prepared for macOS/Linux, separately from these local results.
 - Public preview uses an original synthetic phone illustration and synthetic tasks, visibly labeled DEMO. No device serial, active local credential, private configuration, queue dump or real-phone screenshot is included in the shareable source.
+
+## Version 0.6.1 additions
+
+- Local review rejected the Graphite palette. Replaced it with light surfaces, charcoal text and primary actions, soft neutral task/sidebar separation, an integrated right tool column, restrained selected rows and simpler headings. Native macOS title bar and loading page use light appearance as well. No new frontend dependency or control protocol.
+- Synthetic browser checks at 1280 × 828 and 850 × 618 covered portrait and landscape fit, takeover/release button states, settings, battery detail and focus mode. Portrait height remains 723/513 px with the task footer, and 757 px in focus mode at the larger size. No horizontal overflow or browser console warnings/errors observed. Synthetic interactions are not phone task acceptance.
+- Installed 0.6.1 and reopened the native app while keeping a second viewer connected. Real 720 × 1600 video continued; the native light title bar, new UI version and settings open/close were visually verified. Physical panel remained Off, ownership stayed human and task IDs/statuses were unchanged. No phone input was sent. All 16 installed runtime files and served JavaScript/CSS matched source.
+- 53 Python, 11 action-feedback JavaScript and six adapter tests passed. JavaScript syntax, wheel build and native app compilation passed. The existing aiohttp test fixture emits a non-failing AppKey warning.
+- This version is installed locally for visual review. The published GitHub release remains v0.6.0; no new release or external-use claim is made here.
 
 ## Not established
 
