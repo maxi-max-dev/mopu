@@ -1,0 +1,67 @@
+{
+  "id": "phone-harness",
+  "name": "Phone Harness",
+  "description": "Shared phone console with per-conversation identity and human takeover",
+  "activation": {
+    "onStartup": true
+  },
+  "contracts": {
+    "tools": [
+      "phone_status",
+      "phone_submit",
+      "phone_wait",
+      "phone_tools",
+      "phone_call",
+      "phone_checkpoint",
+      "phone_finish"
+    ]
+  },
+  "toolMetadata": {
+    "phone_status": {
+      "optional": true
+    },
+    "phone_submit": {
+      "optional": true
+    },
+    "phone_wait": {
+      "optional": true
+    },
+    "phone_tools": {
+      "optional": true
+    },
+    "phone_call": {
+      "optional": true
+    },
+    "phone_checkpoint": {
+      "optional": true
+    },
+    "phone_finish": {
+      "optional": true
+    }
+  },
+  "skills": [
+    "./skills"
+  ],
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "stateDir": {
+        "type": "string"
+      },
+      "allowedAgents": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "displayName": {
+        "type": "string"
+      },
+      "resumeOnRelease": {
+        "type": "boolean",
+        "default": false
+      }
+    }
+  }
+}

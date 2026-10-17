@@ -1,0 +1,8 @@
+{
+  "serial": "YOUR_USB_DEVICE_SERIAL",
+  "adb": "/absolute/path/to/adb",
+  "scrcpy_server": "/absolute/path/to/scrcpy-5.0.1/scrcpy-server",
+  "backend_command": ["/absolute/path/to/node", "/absolute/path/to/mobile-mcp/node_modules/@mobilenext/mobile-mcp/lib/index.js"],
+  "operation_lock": "/absolute/path/to/shared-phone-operation.lock",
+  "port": 0
+}

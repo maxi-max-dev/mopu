@@ -1,0 +1,14 @@
+name: Share a workflow or improvement
+description: Help make phone tasks more useful
+body:
+  - type: textarea
+    id: task
+    attributes:
+      label: What phone task are you trying to complete?
+    validations:
+      required: true
+  - type: textarea
+    id: friction
+    attributes:
+      label: Where does the current flow get in the way?
+      description: Describe the expected interaction and your current workaround. Avoid private task data.
