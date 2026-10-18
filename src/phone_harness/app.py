@@ -10,6 +10,7 @@ from .device import Device
 from .tasks import Queue, atomic, now
 from .input_activity import probe_inputs, InputMonitor
 from .activity import ActivityLog
+from .app_activity import AppActivityMonitor
 
 WEB = Path(__file__).parent / 'web'
 
@@ -33,11 +34,13 @@ class Console:
         self.retries = 0
         self.retry_at = None
         self.activity = ActivityLog(self.state_dir)
+        self.app_activity = AppActivityMonitor(self.device,self.activity)
         self.device.on_action = self.activity.known
         self.inputs = InputMonitor(self.device, self.activity,
             lambda: not self.queue.current and not self.op.locked() and not self.device.active_touch and time.time()-self.activity.last_human>3)
 
     def disconnected(self):
+        self.activity.apps.end('offline')
         self.queue.invalidate('连接中断；先核实最后动作是否完成')
         self.queue.owner = 'paused'
         self.queue.event('连接中断，任务进度保留；不会重放输入')
@@ -141,6 +144,7 @@ class Console:
         if action == 'activity_preference':
             if not isinstance(data.get('enabled'),bool): raise ValueError('记录开关需要布尔值')
             self.activity.data['enabled']=data['enabled'];self.activity.save()
+            if not data['enabled']:self.activity.apps.end('disabled')
             return self.snapshot()
         if action == 'activity_seen':
             self.activity.data['seen_at']=time.time();self.activity.save()
@@ -416,6 +420,7 @@ async def serve(config, state_dir):
     panel_monitor = asyncio.create_task(c.panel_loop())
     activity_monitor = asyncio.create_task(c.activity_loop())
     input_monitor = asyncio.create_task(c.inputs.run())
+    app_monitor = asyncio.create_task(c.app_activity.run())
     notifications = asyncio.create_task(c.notification_loop())
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
@@ -428,8 +433,9 @@ async def serve(config, state_dir):
         panel_monitor.cancel()
         activity_monitor.cancel()
         input_monitor.cancel()
+        app_monitor.cancel()
         notifications.cancel()
-        await asyncio.gather(c.monitor, panel_monitor, activity_monitor, input_monitor, notifications, return_exceptions=True)
+        await asyncio.gather(c.monitor, panel_monitor, activity_monitor, input_monitor, app_monitor, notifications, return_exceptions=True)
         c.queue.invalidate('服务结束，等待手动恢复')
         async with c.op: await c.device.close()
         await asyncio.gather(*(ws.close() for ws in list(c.device.watchers)), return_exceptions=True)

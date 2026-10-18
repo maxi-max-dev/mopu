@@ -143,3 +143,5 @@ The phone stays centered in the whole window. The task drawer starts collapsed a
 ### Activity records (0.8 local preview)
 
 A small status icon opens source-labelled, merged action records. Personal notifications use a private executable hook, a 10-second merge window, persistent event IDs and a 5-minute cooldown. Physical calibration is required before external-input alerts can be enabled. See [coverage, configuration and current validation limits](docs/ACTIVITY.md).
+
+The 0.8.1 local preview adds an **App visits** tab: app name/package, first/last observation, approximate foreground time and input counts during the visit. It stores no page content. Locking, missing reads or disconnecting stops the timer; foreground time does not prove active use or identify a person.

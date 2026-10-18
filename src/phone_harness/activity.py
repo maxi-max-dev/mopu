@@ -8,6 +8,7 @@ import secrets
 import time
 from pathlib import Path
 from .tasks import atomic, now
+from .app_activity import AppActivityLog
 
 KINDS = {'tap':'点击','swipe':'滑动','long_press':'长按','double_tap':'双击',
          'key':'导航按键','text':'文字输入','app':'打开应用或链接',
@@ -21,6 +22,7 @@ class ActivityLog:
         self.data = json.loads(self.path.read_text()) if self.path.exists() else {
             'enabled':False,'records':[],'last_notification':0,'seen_at':0}
         self.notification_lock = asyncio.Lock()
+        self.apps = AppActivityLog(root,clock)
         self.last_human = self.clock()
         self.known_ids = set()
         self.runtime = {'status':'disabled','nodes':[],'fingerprint':None,'at':None,'error':None}
@@ -58,6 +60,7 @@ class ActivityLog:
     def record(self, source, kind, idle):
         if not self.data['enabled'] or source not in ('human','agent','device') or kind not in KINDS: return
         t = self.clock()
+        self.apps.action(source,kind)
         records = self.data['records']
         r = next((x for x in reversed(records) if x['source']==source and x['idle']==idle and x.get('verified')==(source!='device' or self.verified()) and t-x['last']<=30),None)
         if r is None:
@@ -81,7 +84,8 @@ class ActivityLog:
         return {**runtime,'enabled':self.data['enabled'],'verified':verified,
                 'notifications_configured':bool(self.config()),
                 'unread':sum(r['source']=='device' and r['last']>self.data['seen_at'] for r in records),
-                'records':records,'test':self.data.get('test')}
+                'records':records,'test':self.data.get('test'),
+                'apps':self.apps.snapshot(connected,self.data['enabled'])}
 
     async def send(self, event_id, title, body):
         cfg = self.config()

@@ -141,10 +141,10 @@ code{color:var(--accent)}
 label{display:block;font-size:12px;color:var(--muted);margin-bottom:17px}
 input,textarea,select{display:block;background:var(--panel);border:1px solid #dce1d5;border-radius:8px;padding:11px 12px;color:var(--ink);width:100%;margin-top:7px;resize:vertical}
 input:focus,textarea:focus,select:focus{outline:2px solid #7893a9;outline-offset:1px}
-#closePauses,#showActions{width:32px;height:18px;flex:none;appearance:none;position:relative;background:#c9d0c1;border:0;border-radius:10px;padding:0;margin-top:2px;cursor:pointer;transition:background .15s}
-#closePauses:after,#showActions:after{content:'';position:absolute;left:2px;top:2px;width:14px;height:14px;border-radius:50%;background:#fff;box-shadow:0 1px 2px #0003;transition:transform .15s}
-#closePauses:checked,#showActions:checked{background:#435b39}
-#closePauses:checked:after,#showActions:checked:after{transform:translateX(14px)}
+#closePauses,#showActions,#inputActivityEnabled{width:32px;height:18px;flex:none;appearance:none;position:relative;background:#c9d0c1;border:0;border-radius:10px;padding:0;margin-top:2px;cursor:pointer;transition:background .15s}
+#closePauses:after,#showActions:after,#inputActivityEnabled:after{content:'';position:absolute;left:2px;top:2px;width:14px;height:14px;border-radius:50%;background:#fff;box-shadow:0 1px 2px #0003;transition:transform .15s}
+#closePauses:checked,#showActions:checked,#inputActivityEnabled:checked{background:#435b39}
+#closePauses:checked:after,#showActions:checked:after,#inputActivityEnabled:checked:after{transform:translateX(14px)}
 #actionSize{width:100px;flex:none;align-self:center;font-size:12px;padding:8px;margin:0}
 #detailContent pre{white-space:pre-wrap;overflow-wrap:anywhere;font-family:inherit;font-size:12px}
 .task-id{font:10px 'SFMono-Regular',monospace;color:var(--muted)}
@@ -167,6 +167,12 @@ body.focus .tasks,body.focus .statusbar,body.focus .drawer-scrim{display:none}
 /* Activity remains a small status icon; all history lives in an on-demand dialog. */
 #inputActivityDetail{width:min(520px,calc(100vw - 32px))}
 #inputActivityDetail .settings-row{gap:20px}
+.activity-tabs{display:flex;gap:4px;margin:16px 0 8px;border-bottom:1px solid var(--line)}
+.activity-tabs button{border:0;border-radius:0;background:transparent;color:var(--muted);padding:8px 12px;border-bottom:2px solid transparent}
+.activity-tabs button[aria-selected=true]{color:var(--ink);border-bottom-color:var(--ink)}
+.visit-duration{white-space:nowrap;font-size:12px;font-variant-numeric:tabular-nums}
+.visit-package{display:block;overflow-wrap:anywhere;margin-top:4px}
+.input-activity-head strong{overflow-wrap:anywhere;min-width:0}
 .activity-delivery{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;color:var(--muted);font-size:12px}
 .input-activity-records{max-height:42vh;overflow:auto;border-top:1px solid var(--line)}
 .input-activity-row{padding:15px 2px;border-bottom:1px solid var(--line)}
