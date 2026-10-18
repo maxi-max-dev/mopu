@@ -62,12 +62,14 @@ class ActivityTests(unittest.IsolatedAsyncioTestCase):
  async def test_continuous_actions_one_record_one_notification(self):
   for _ in range(70):
    self.a.record('device','tap',True);self.t+=2;await self.a.tick()
+  self.a.send.assert_not_awaited()
+  self.t+=31;await self.a.tick();await self.a.tick()
   self.assertEqual(len(self.a.data['records']),1)
   self.assertEqual(self.a.data['records'][0]['counts']['tap'],70)
   self.assertEqual(self.a.send.await_count,1)
  async def test_cooldown_and_restart_dont_repeat(self):
-  self.a.record('device','tap',True);self.t+=11;await self.a.tick()
-  self.t+=40;self.a.record('device','swipe',True);self.t+=11;await self.a.tick()
+  self.a.record('device','tap',True);self.t+=31;await self.a.tick()
+  self.t+=40;self.a.record('device','swipe',True);self.t+=31;await self.a.tick()
   self.assertEqual(self.a.send.await_count,1)
   restored=ActivityLog(self.root,lambda:self.t);restored.send=AsyncMock()
   await restored.tick();restored.send.assert_not_awaited()
@@ -102,6 +104,50 @@ class ActivityTests(unittest.IsolatedAsyncioTestCase):
  async def test_inflight_after_restart_is_unknown(self):
   self.a.record('device','tap',True);self.a.data['records'][0]['notification']='sending';self.a.save()
   restored=ActivityLog(self.root);self.assertEqual(restored.data['records'][0]['notification'],'unknown')
+ async def test_restart_does_not_send_unfinished_session(self):
+  self.a.record('device','tap',True);self.t+=31
+  restored=ActivityLog(self.root,lambda:self.t);restored.send=AsyncMock()
+  restored.runtime.update(status='listening',fingerprint='fixture')
+  await restored.tick();restored.send.assert_not_awaited()
+  self.assertEqual(restored.data['records'][0]['notification'],'expired')
+ async def test_exact_merge_boundary_extends_session_without_early_send(self):
+  self.a.record('device','tap',True);self.t+=30;await self.a.tick()
+  self.a.send.assert_not_awaited();self.a.record('device','swipe',True)
+  self.t+=30;await self.a.tick();self.a.send.assert_not_awaited()
+  self.t+=1;await self.a.tick()
+  self.assertEqual(self.a.send.await_count,1)
+  self.assertEqual(self.a.data['records'][0]['counts'],{'tap':1,'swipe':1})
+ async def test_summary_combines_apps_and_revisits_without_pre_session_or_private_content(self):
+  self.a.apps.monotonic=lambda:self.t
+  def observe(t,package):
+   self.t=t;self.a.apps.observe({'status':'known','package':package,'label':{'settings':'设置','clock':'时钟'}[package],
+                                'label_source':'device','text':'PRIVATE_TEXT','title':'PRIVATE_TITLE','url':'PRIVATE_URL'})
+  observe(998,'settings');observe(1000,'settings');self.a.record('device','tap',True)
+  observe(1002,'settings');await self.a.tick()
+  observe(1004,'clock');observe(1006,'clock');await self.a.tick()
+  observe(1008,'settings');self.a.record('device','swipe',True)
+  for t in range(1010,1020,2):observe(t,'settings');await self.a.tick()
+  self.a.apps.end('locked');self.t=1040;await self.a.tick()
+  record=self.a.data['records'][0]
+  self.assertEqual(record['app_summary'],[{'package':'settings','label':'设置','seconds':12.0},{'package':'clock','label':'时钟','seconds':2.0}])
+  body=self.a.send.call_args.args[2]
+  self.assertIn('设置：约 12 秒',body);self.assertIn('时钟：约 2 秒',body)
+  self.assertEqual(body.count('• 设置'),1);self.assertIn('点击 1 次、滑动 1 次',body)
+  for private in ('PRIVATE_TEXT','PRIVATE_TITLE','PRIVATE_URL'):self.assertNotIn(private,body);self.assertNotIn(private,self.a.path.read_text())
+  await self.a.tick();self.assertEqual(self.a.send.await_count,1)
+ async def test_pending_summary_keeps_visits_after_recent_log_eviction(self):
+  self.a.apps.data['visits']=[{'id':'early','package':'settings','label':'设置','first':1000,'last':1002,'seconds':2}]
+  self.a.record('device','tap',True);self.t=1002;await self.a.tick();await self.a.tick()
+  self.a.apps.data['visits']=[{'id':'later','package':'clock','label':'时钟','first':1004,'last':1008,'seconds':4}]
+  self.t=1008;self.a.record('device','tap',True);await self.a.tick()
+  self.t=1040;await self.a.tick()
+  self.assertEqual([v['seconds'] for v in self.a.data['records'][0]['app_summary']],[2,4])
+  self.assertEqual(self.a.pending_apps,{})
+ async def test_absent_app_readings_are_explicit_and_timeouts_are_not_replayed(self):
+  self.a.send=AsyncMock(return_value={'status':'unknown'})
+  self.a.record('device','tap',True);self.t+=31;await self.a.tick();await self.a.tick()
+  self.assertIn('未取得可用的前台 App 读数',self.a.send.call_args.args[2])
+  self.assertEqual(self.a.send.await_count,1)
  async def test_private_files_and_missing_config(self):
   self.a.record('device','key',True)
   self.assertEqual(self.a.path.stat().st_mode & 0o777,0o600)

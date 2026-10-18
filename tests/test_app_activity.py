@@ -99,6 +99,17 @@ class VisitTests(unittest.TestCase):
         self.assertEqual(len(self.log.data['visits']),2)
         self.assertFalse(a.verified())
 
+    def test_notification_window_clips_both_ends_and_excludes_gaps_and_outside_apps(self):
+        self.log.observe(SETTINGS)
+        for _ in range(5):self.advance(2);self.log.observe(SETTINGS)
+        self.log.end('locked');self.advance(20);self.log.observe(CLOCK)
+        self.advance(2);self.log.observe(CLOCK)
+        rows=self.log.interval_visits(1004,1008)
+        self.assertEqual([(r['label'],r['seconds']) for r in rows],[('设置',4)])
+        self.assertEqual(sum(r['seconds'] for r in self.log.interval_visits(1004,1040)),8)
+        self.assertEqual(self.log.interval_visits(1012,1025),[])
+        self.assertEqual(self.log.interval_visits(1010,1000),[])
+
 
 class MonitorTests(unittest.IsolatedAsyncioTestCase):
     async def test_device_names_override_aliases_once_per_connection(self):
