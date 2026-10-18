@@ -5,7 +5,7 @@ Run python3 tools/preview.py, open http://127.0.0.1:18797. All data is synthetic
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 from datetime import datetime, timezone
-import argparse, json
+import argparse, json, time
 ROOT = Path(__file__).resolve().parents[1]
 WEB = ROOT / 'src/phone_harness/web'
 state = {
@@ -18,6 +18,11 @@ state = {
  'events':[],
  'device':{'connected':True,'width':720,'height':1600,'error':None,'telemetry':{'panel':'off','panel_age':0},'health':{}}
 }
+stamp=time.time()
+state['activity']={'enabled':True,'status':'listening','verified':False,'unread':0,'notifications_configured':False,'records':[],
+ 'apps':{'status':'known','at':stamp,'sample_interval_seconds':2,'visits':[
+  {'id':'demo-settings','package':'com.android.settings','label':'设置','label_source':'device','first':stamp-180,'last':stamp-139,'seconds':41,'ongoing':False,'end_reason':'switched','inputs':{'agent':{'tap':2}}},
+  {'id':'demo-clock','package':'com.android.deskclock','label':'时钟','label_source':'device','first':stamp-137,'last':stamp,'seconds':137,'ongoing':True,'inputs':{'human':{'tap':1}}}]}}
 
 def refresh():
  now=datetime.now(timezone.utc).isoformat()

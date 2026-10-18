@@ -65,6 +65,13 @@ function renderPanel(){
 $('inputActivityStatus').onclick=async()=>{renderInputActivity();show('inputActivityDetail');await control('activity_seen');};
 $('inputActivityEnabled').onchange=()=>control('activity_preference',{enabled:$('inputActivityEnabled').checked});
 $('inputNotifyTest').onclick=()=>control('activity_notify_test');
+let activityTab='apps';
+$('appVisitsTab').onclick=()=>{activityTab='apps';renderInputActivity();};
+$('inputCountsTab').onclick=()=>{activityTab='inputs';renderInputActivity();};
+function visitDuration(seconds){
+ const s=Math.max(0,Math.floor(seconds||0));
+ return s<1?'不足 1 秒':s<60?s+' 秒':s<3600?Math.floor(s/60)+' 分 '+s%60+' 秒':Math.floor(s/3600)+' 小时 '+Math.floor(s%3600/60)+' 分';
+}
 function renderInputActivity(){
  const a=state?.activity||{}, online=state?.device.connected&&performance.now()-stateReceivedAt<=3500;
  const names={disabled:'记录已关闭',offline:'离线 · 无法监测',probing:'正在核实输入通道',unavailable:'输入通道不可用',listening:a.verified?'正在监听本体输入':'通道可读 · 待实体触摸实测'};
@@ -79,14 +86,31 @@ function renderInputActivity(){
  $('inputNotifyTest').disabled=controlBusy||!a.notifications_configured||['sent','sending','unknown'].includes(test);
  const kinds={tap:'点击',swipe:'滑动',long_press:'长按',double_tap:'双击',key:'导航按键',text:'文字输入',app:'打开应用或链接',power:'电源键',volume:'音量键'};
  const notices={pending:'合并记录中',sending:'提醒发送中',sent:'已发送飞书提醒',failed:'提醒失败',unknown:'投递结果未知',cooldown:'冷却期间 · 仅记录',held_unverified:'来源待实测 · 未提醒',unconfigured:'未配置通知',expired:'历史事件 · 未补发'};
- const rows=(a.records||[]).slice().reverse().map(r=>{
+ const showApps=activityTab==='apps';
+ $('appVisitsTab').setAttribute('aria-selected',String(showApps));$('inputCountsTab').setAttribute('aria-selected',String(!showApps));
+ const appState=!a.enabled?'disabled':!online?'offline':a.apps?.status||'unknown';
+ const appStates={known:'前台应用读数有效 · 时长按连续取样估算',locked:'手机已锁屏 · 已停止 App 计时',asleep:'手机逻辑休眠 · 已停止 App 计时',offline:'连接中断 · 已停止计时',disabled:'记录已关闭',unknown:'前台应用暂时无法核验 · 已停止计时',interrupted:'会话结束 · 已停止计时'};
+ $('appVisitsState').hidden=!showApps;$('appVisitsState').textContent=appStates[appState]||'前台应用待核验';
+ const rows=showApps?(a.apps?.visits||[]).slice().reverse().map(v=>{
+  const row=element('article','input-activity-row'),head=element('div','input-activity-head');
+  const stamp=t=>new Date(t*1000).toLocaleString('zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
+  const ongoing=v.ongoing&&appState==='known';
+  head.append(element('strong','',v.label||v.package),element('span','visit-duration','前台约 '+visitDuration(v.seconds)));row.append(head);
+  row.append(element('small','',stamp(v.first)+' → '+(ongoing?'当前前台':stamp(v.last))));
+  if(v.label!==v.package)row.append(element('small','visit-package',v.package));
+  const inputs=Object.entries(v.inputs||{}).map(([source,counts])=>({human:'远程人工',agent:'助手',device:'设备输入'}[source]||'未知')+'：'+Object.entries(counts).map(([k,n])=>(kinds[k]||'操作')+' '+n+' 次').join('、'));
+  row.append(element('p','',inputs.join(' · ')||'未记录到输入；不代表无人操作'));
+  const endings={switched:'已切换 App',locked:'锁屏后停止计时',asleep:'休眠后停止计时',gap:'取样中断，未累计空白时间',offline:'断线后停止计时',unknown:'读数中断',disabled:'记录已关闭',interrupted:'会话中断'};
+  if(!ongoing)row.append(element('small','',endings[v.end_reason]||'截至最后有效读数'));
+  return row;
+ }):(a.records||[]).slice().reverse().map(r=>{
   const row=element('article','input-activity-row'),head=element('div','input-activity-head');
   head.append(element('strong','',({human:'你的远程操作',agent:'助手操作',device:r.verified?'手机本体输入':'设备输入 · 待确认'})[r.source]||'未知来源'),element('time','',new Date(r.first*1000).toLocaleTimeString('zh-CN',{hour12:false})));
   row.append(head,element('p','',Object.entries(r.counts).map(([k,v])=>(kinds[k]||'操作')+' '+v+' 次').join(' · ')));
   const note=r.source==='device'?(r.idle?(notices[r.notification]||'已记录'):'远程操作期间 · 仅记录'):'输入已发出，不代表任务完成';
   row.append(element('small','',note));return row;
  });
- if(!rows.length)rows.push(element('p','activity-empty','尚无活动记录。开启后记录新操作。'));
+ if(!rows.length)rows.push(element('p','activity-empty',showApps?'尚无 App 停留记录。开启后从新的有效读数开始。':'尚无活动记录。开启后记录新操作。'));
  $('inputActivityRecords').replaceChildren(...rows);
 }
 let healthTab='audio', previousActivity='';

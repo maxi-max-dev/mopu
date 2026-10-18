@@ -103,6 +103,14 @@ Local acceptance on 2026-10-17 (Australia/Brisbane). This is a prototype build, 
 - 70 Python tests, 11 action-feedback JavaScript tests and six OpenClaw adapter tests passed, plus JavaScript syntax and wheel/native builds. All 18 installed runtime files matched source and the final 0.8.0 wheel. The earlier `g100` maintenance automation remains PAUSED. This preview is installed locally; the public release remains v0.6.0.
 - Actual touchscreen/power/volume input, panel-off touch reporting, real physical-input alert merging/cooldown and multi-day monitoring still need a person at the phone. Synthetic parser and notification tests are separate from those device acceptance steps.
 
+## Version 0.8.1 local preview
+
+- Added an App visits tab inside the existing activity sheet: actual application names from Mobile MCP metadata when available, package fallback, observed start/end, approximate foreground dwell and input categories by channel. The full name inventory remains in memory; only visited-app metadata is persisted. No page content, UI tree, screenshot, text, URL or window title is recorded by the monitor.
+- 83 Python tests and the existing 17 JavaScript/adapter tests passed. New coverage includes focused-package/lock parsing, app-name metadata, switch intervals, source counts, unknown/locked/disconnected stops, stale samples, host-sleep gaps, clock changes, restart, private archive retention and content exclusion. Input-alert merging is unchanged by app transitions. Synthetic browser UI verified names, durations, source counts, two tabs and the compact recording switch; this is not phone task acceptance.
+- On the USB G100, the filtered general window dump exposes current focus; its narrower `windows` dump did not suffice. The actual keyguard state was detected as locked and no underlying app visit was recorded. The installed native window correctly displayed “手机已锁屏 · 已停止 App 计时”. Mobile MCP returned actual installed-app display names.
+- Normal remote swipe, the visibly unlocked device-entry icon and launching Settings did not dismiss the keyguard. Observations stayed on that screen. No password was entered, security setting changed or physical panel intentionally turned on. The owner was asked to unlock through the console when convenient. **Real app switching/dwell acceptance remains pending**, alongside the previously pending physical-touch acceptance; neither is claimed from the software checks or synthetic UI.
+- 0.8.1 is installed locally, with existing history, test receipt and the physical-validation gate preserved. Formal external-input alerts remain disabled and `g100` maintenance remains PAUSED. No new Feishu test or alert was sent in this update; public release remains v0.6.0.
+
 ## Not established
 
 - Claude Code has not been configured or exercised in this acceptance. The common stdio MCP adapter and the actual Jarvis/OpenClaw adapter have been exercised.

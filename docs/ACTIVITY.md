@@ -1,6 +1,18 @@
 # Activity records and personal notifications (0.8 preview)
 
-The small waveform icon opens activity records. Enabling recording creates local metadata-only summaries: source, timestamp, gesture category and count. It does not capture text, coordinates, screenshots, audio, foreground applications or the meaning of a clicked button. Console inputs mean **issued**, not necessarily successfully applied.
+The small waveform icon opens activity records. Enabling recording creates local metadata-only summaries: source, timestamp, gesture category and count. Since 0.8.1, its **App visits** tab also records foreground application names/packages and approximate dwell time. It does not capture page content, typed text, coordinates, screenshots, audio or the meaning of a clicked button. Console inputs mean **issued**, not necessarily successfully applied.
+
+## Foreground applications (0.8.1)
+
+The console reads only filtered current-window identity, keyguard and wakefulness metadata about every two seconds. It resolves app names from the existing Mobile MCP app-name inventory once per connection; that inventory stays in memory. If unavailable, common display aliases or the package ID are shown. Only visited apps are saved. No UI hierarchy, page title, message, URL, screenshot or microphone is queried by this monitor.
+
+Each observed app switch starts a new visit with first/last observed time, approximate foreground duration and inputs observed during that visit. This is **foreground time**, not attention or continuous interaction. It does not identify who opened an app, establish that opening was intentional, or trigger an external-input alert by itself. Single-window focus is tracked; multiple ambiguous focused packages are unknown. Very short visits can fall between samples. Input association around a switch is approximate at the same sampling resolution.
+
+Locked/covered keyguard, logical sleep, unknown/failed reads, disconnected sessions and disabled recording end the visit at the last valid sample. Physical panel-off by itself does not end it while remote interaction remains logically awake. Gaps over six seconds, wall-clock jumps and restart never add unobserved time. The UI shows only confirmed sampled duration, without a free-running timer. Current visits are persisted about every ten seconds and on inputs/transitions; a crash can lose the last few seconds, not inflate them. There is no backfill of earlier activity.
+
+`app-activity.json` keeps 250 recent visits (100 shown); `app-visits.jsonl` preserves completed visits as metadata-only, append-only entries. Both are private. A crash between journal append and state save can repeat a visit ID in the archive; archive consumers should deduplicate by ID. The full app-name inventory is not written. The existing recording switch controls both the app and input logs.
+
+Keyguard field reference: [Android KeyguardServiceDelegate dump](https://android.googlesource.com/platform/frameworks/base/+/47a65c79c94ac605e3a17e66555f2db7ac05b9d1/services/core/java/com/android/server/policy/keyguard/KeyguardServiceDelegate.java).
 
 `human` means the console's manual input channel (including a remote desktop user); `agent` means the leased task's input channel. Neither identifies a person. `device` means an event from a selected kernel input node. Before physical calibration the UI labels these events as unverified, and external-operation notifications are blocked.
 
