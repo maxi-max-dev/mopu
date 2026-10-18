@@ -27,7 +27,9 @@ A dropped event or dead reader invalidates monitoring. Closing/disconnecting the
 ## Merging and notifications
 
 - Actions from the same source and remote-idle context merge when separated by no more than 30 seconds.
-- For a calibrated device event, the first notification waits 10 seconds to combine initial activity. It contains counts **as of sending**, not a promise that the activity is over.
+- Since 0.8.2, a calibrated device-input session waits until **more than 30 seconds without new input**, then sends one combined summary. This replaces the earlier 10-second initial alert so later app switches in the same session are included. Continuous input extends the wait; there is no alert while that session is still receiving input.
+- The message lists each observed foreground App and its approximate dwell, aggregating repeated visits to the same package. The summary window runs from first input through 30 seconds after last input; it excludes earlier/later usage and does not count missing/locked intervals. Apps remain described as observed foreground presence, not proof of who opened them. Missing app readings are stated explicitly, without guessed names or times. No page content is sent.
+- Pending summaries retain per-visit metadata in memory, so the recent-250-visit display limit does not drop early apps from a continuous session. The final per-app summary is saved with the local delivery result. Restart discards unfinished notification sessions without replaying a backlog; the underlying app/input history remains.
 - A continuous session sends at most once; notifications across sessions have a 5-minute cooldown. Events inside the cooldown remain local.
 - Events during a running Agent task, an in-flight phone operation, a held remote pointer, or within 3 seconds of manual remote input are recorded without alerting.
 - Missing calibration, unavailable monitoring, failed configuration and stale events do not become alerts later. Historical events are never retroactively notified when calibration is enabled.
@@ -60,3 +62,5 @@ Before enabling alerts, verify real physical touches and every key node included
 Repeat the physical comparison with the physical panel on and off. A dark panel may also stop touch scanning on a particular phone; an open input reader does not prove that the touchscreen continues reporting touches in that state. Do not advertise coverage of touches that the hardware does not report.
 
 On 2026-10-17 the owner could not physically reach the G100. Two actual Agent taps and two actual manual-console taps were recorded under their respective sources, with zero device-input records. A single Feishu test was sent and read back; invoking the test again reused its result. **Physical input detection and real external-operation alerts remain pending.** The earlier maintenance automation remains paused.
+
+On 2026-10-18, after the owner unlocked the device, real Settings/desktop switches and bounded dwell were verified in the native activity sheet. This establishes App-visit metadata, not physical-input provenance; the latter gate remains disabled pending an on-site comparison.

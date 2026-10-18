@@ -140,6 +140,20 @@ class AppActivityLog:
             {**v,'seconds':round(v['seconds'],1),'ongoing':bool(v['ongoing'] and status=='known' and v is self.current)}
             for v in self.data['visits'][-100:]],'sample_interval_seconds':2}
 
+    def interval_visits(self, start, end):
+        """Clip confirmed foreground time to one notification's observation window."""
+        if end < start:return []
+        rows=[]
+        for v in self.data['visits']:
+            first,last=max(start,v['first']),min(end,v['last'])
+            if last < first:continue
+            span=v['last']-v['first']
+            # Visits are continuous valid samples. Pro-rate the boundary interval,
+            # never extend to send time or fill unknown/locked observation gaps.
+            seconds=min(last-first,max(0,v['seconds'])*(last-first)/span) if span>0 else 0
+            rows.append({'id':v['id'],'package':v['package'],'label':v['label'],'seconds':seconds})
+        return rows
+
 
 class AppActivityMonitor:
     def __init__(self, device, activity):

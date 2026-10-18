@@ -21,7 +21,7 @@ def install_app(state, destination):
     executable.parent.mkdir(parents=True); resources.mkdir(parents=True)
     subprocess.run([compiler,'-O',str(Path(__file__).with_name('Desktop.swift')),'-o',str(executable),'-framework','Cocoa','-framework','WebKit'],check=True,timeout=120)
     info = {'CFBundleName':'Phone Harness','CFBundleDisplayName':'Phone Harness','CFBundleIdentifier':'local.phone-harness.console',
-        'CFBundleExecutable':'PhoneHarness','CFBundlePackageType':'APPL','CFBundleVersion':'0.8.1','CFBundleShortVersionString':'0.8.1',
+        'CFBundleExecutable':'PhoneHarness','CFBundlePackageType':'APPL','CFBundleVersion':'0.8.2','CFBundleShortVersionString':'0.8.2',
         'NSHighResolutionCapable':True,'NSAppTransportSecurity':{'NSAllowsLocalNetworking':True}}
     (staging/'Contents/Info.plist').write_bytes(plistlib.dumps(info))
     (resources/'launch.json').write_text(json.dumps({'python':sys.executable,'state':str(Path(state).resolve())}))

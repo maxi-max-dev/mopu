@@ -113,6 +113,14 @@ Local acceptance on 2026-10-17 (Australia/Brisbane). This is a prototype build, 
 - Physical-touch acceptance and real external-input alerts remain pending. App visits describe sampled foreground presence, not continuous attention or the identity of an operator. No new Feishu notification was sent during this follow-up.
 - 0.8.1 is installed locally, with existing history, test receipt and the physical-validation gate preserved. Formal external-input alerts remain disabled and `g100` maintenance remains PAUSED. No new Feishu test or alert was sent in this update; public release remains v0.6.0.
 
+## Version 0.8.2 local preview
+
+- External-input notifications now wait for 30 seconds without new input, then combine the session's counts, observed foreground App names and approximate dwell in one reminder. Repeated visits to the same package are summed; the time window starts at the first input and ends 30 seconds after the last. Only confirmed foreground intervals are counted. Missing app readings are explicit; they are not guessed or treated as zero activity. Earlier/later app use is excluded. Unfinished sessions are not notified after restart.
+- 89 Python tests and 17 JavaScript/adapter tests passed, plus JavaScript syntax and wheel/native builds. Coverage includes no early send during continuous actions, exact merge boundary, repeated App aggregation, interval clipping, missing/locked readings, recent-visit eviction, content exclusion, restart, cooldown and unknown delivery without replay.
+- Installed 0.8.2 in the existing native app. All 19 installed runtime files matched source and wheel; native version and updated merge explanation were verified. Existing task states, recording preference, calibration gate and original Feishu test receipt survived the service reload. USB video resumed, physical panel read Off, quiet channels read silent and ownership remained human. No phone navigation was performed for this notification-only change.
+- One clearly labeled synthetic-format test was sent to the existing personal Feishu route. The provider message API read back the same message containing Settings approximately 34 seconds and Clock approximately 18 seconds, as well as the synthetic-test and calibration-pending labels. These values are test data, not a new real physical-operation event. The previous real-device App-visit acceptance remains separate.
+- Physical positive calibration and real external-input alert delivery remain untested and disabled. The earlier `g100` maintenance automation remains PAUSED. The public release remains v0.6.0; this change is installed locally.
+
 ## Not established
 
 - Claude Code has not been configured or exercised in this acceptance. The common stdio MCP adapter and the actual Jarvis/OpenClaw adapter have been exercised.
