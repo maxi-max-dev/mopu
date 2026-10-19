@@ -5,6 +5,7 @@ import json
 import secrets
 import time
 from pathlib import Path
+from .contracts import WAIT_REASONS
 
 
 def now():
@@ -53,7 +54,7 @@ class Queue:
             raise ValueError('请填写任务标题和说明，标题最多120字')
         task = {'id': secrets.token_hex(6), 'title': title.strip(), 'instruction': instruction.strip(),
                 'agent': agent, 'agent_name': agent_name, 'status': 'queued', 'created_at': now(),
-                'checkpoint': '', 'action': '等待原助手领取', 'result': '', 'steps': 0}
+                'wait_reason': '', 'receipt': None, 'checkpoint': '', 'action': '等待原助手领取', 'result': '', 'steps': 0}
         self.data['tasks'].append(task)
         self.event(f'{agent_name} 添加任务：{title}')
         return copy.deepcopy(task)
@@ -78,7 +79,7 @@ class Queue:
         if self.lease:
             return None
         t = self.head()
-        if not t or t['agent'] != agent:
+        if not t or t['agent'] != agent or t.get('wait_reason'):
             return None
         self.generation += 1
         self.current = t['id']
@@ -99,18 +100,22 @@ class Queue:
             self.invalidate('助手连接超时；等待原助手重新领取')
             self.event('助手租约到期，旧操作已失效')
 
-    def checkpoint(self, agent, token, progress, action):
+    def checkpoint(self, agent, token, progress, action, wait_reason=""):
+        if wait_reason and wait_reason not in WAIT_REASONS:
+            raise ValueError("未知等待原因")
         t = self.check(agent, token)
-        t.update(checkpoint=str(progress)[:16000], action=str(action)[:500], checkpoint_at=now())
+        t.update(checkpoint=str(progress)[:16000], action=str(action)[:500], checkpoint_at=now(), wait_reason=wait_reason)
         self.save()
 
-    def finish(self, agent, token, result, blocked=False):
+    def finish(self, agent, token, result, blocked=False, receipt=None):
         t = self.check(agent, token)
         if not str(result).strip():
             raise ValueError('请提供结果或具体阻塞原因')
-        t.update(status='blocked' if blocked else 'done', result=str(result)[:30000], finished_at=now(), action='等待你处理' if blocked else '已完成')
+        verified = bool(receipt and receipt.get('verification') == 'assistant_verified')
+        status = 'blocked' if blocked else 'done' if verified else 'unverified'
+        t.update(status=status, result=str(result)[:30000], receipt=copy.deepcopy(receipt), finished_at=now(), action=(t.get('action') or '等待你处理') if blocked else '原助手已核验完成' if verified else '结果已保存，待核验')
         self.invalidate('任务结束')
-        self.event(('任务受阻：' if blocked else '任务完成：') + t['title'])
+        self.event(('任务受阻：' if blocked else '任务已核验：' if verified else '结果待核验：') + t['title'])
 
     def move(self, ident, direction):
         task = self.get(ident)

@@ -6,18 +6,19 @@ import os
 from pathlib import Path
 from .app import serve
 from .mcp import stdio
+from .paths import default_state
 
 
 def main():
     parser = argparse.ArgumentParser(description='Local Android control console and agent-neutral MCP bridge')
-    parser.add_argument('--state', type=Path, default=Path.home()/'.local/share/phone-harness')
+    parser.add_argument('--state', type=Path, default=default_state())
     sub = parser.add_subparsers(dest='command', required=True)
     sub.add_parser('serve', help='Run the local console; prints its loopback URL')
     sub.add_parser('status', help='Read the local console state')
     sub.add_parser('open', help='Start the local server if needed and open the console in your browser')
     sub.add_parser('url', help='Start the local server if needed and print its URL without opening a browser')
     desktop = sub.add_parser('install-app', help='Build an independent macOS app window')
-    desktop.add_argument('--destination',type=Path,default=Path.home()/'Applications/Phone Harness.app')
+    desktop.add_argument('--destination',type=Path,default=Path.home()/'Applications/Mopu.app')
     setup = sub.add_parser('setup',help='Bind one authorized USB phone and create a private configuration')
     for flag in ('adb','node','serial','scrcpy-server','mobile-mcp','operation-lock'):
         setup.add_argument('--'+flag)

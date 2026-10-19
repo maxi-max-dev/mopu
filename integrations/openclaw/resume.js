@@ -1,3 +1,4 @@
+import {existsSync} from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
@@ -6,14 +7,14 @@ import {randomUUID} from 'node:crypto';
 export function eligible(state,binding,active,attempts) {
   const head=state.tasks?.find(t=>['queued','paused','running'].includes(t.status));
   return Boolean(state.owner==='agent' && state.device?.connected && !state.lease_active && head &&
-    head.agent===binding.identity && !active && (attempts[head.id]||0)<3);
+    head.agent===binding.identity && !head.wait_reason && !active && (attempts[head.id]||0)<3);
 }
 
 // Event-driven continuation belongs to the existing OpenClaw host. No cron,
 // model selection, phone UI polling, external delivery or cross-agent routing.
 export function createResumeService(api,identityFor,deps={}) {
   const settings=api.pluginConfig||{};
-  const root=settings.stateDir||path.join(os.homedir(),'.local/share/phone-harness');
+  const root=settings.stateDir||(existsSync(path.join(os.homedir(),'.local/share/phone-harness')) ? path.join(os.homedir(),'.local/share/phone-harness') : path.join(os.homedir(),'.local/share/mopu'));
   const file=path.join(root,'openclaw-resume.json');
   let records={},timer=null,loading=null,busy=false,lastError='',activeSession=null;
   const running=new Set();
@@ -62,7 +63,7 @@ export function createResumeService(api,identityFor,deps={}) {
       const allowed=['phone_status','phone_wait','phone_tools','phone_call','phone_checkpoint','phone_finish'];
       // The fixed prompt only points to an already-authorized task; task text
       // and checkpoint are retrieved through the same lease protocol.
-      const prompt='用户已在 Phone Harness 控制台交回手机，或前序手机任务已完成。继续本对话已有的授权手机任务，不新建任务、不发任何外部消息。先 phone_status，再 phone_wait。只执行本对话原有队列；无任务就结束。有人工接管则停止读屏和输入，最多等待两次，仍 waiting 就结束本轮，队列保留，稍后交回会自动续接。拿到控制权后 phone_tools，读 checkpoint，并重新观察当前屏幕再决定下一步。每个输入前 phone_checkpoint，输入后重新观察。不要重放超时动作，不用其他控制通道、不改静音或实体息屏设置。截图与坐标按实际工具，菜单说明不是开关状态。只有实际读回才 phone_finish，然后继续原队列下一项。';
+      const prompt='用户已在 Mopu 控制台交回手机，或前序手机任务已完成。继续本对话已有的授权手机任务，不新建任务、不发任何外部消息。先 phone_status，再 phone_wait。只执行本对话原有队列；无任务就结束。有人工接管则停止读屏和输入，最多等待两次，仍 waiting 就结束本轮，队列保留，稍后交回会自动续接。拿到控制权后 phone_tools，读 checkpoint，并重新观察当前屏幕再决定下一步。每个输入前 phone_checkpoint，输入后重新观察。不要重放超时动作，不用其他控制通道、不改静音或实体息屏设置。截图与坐标按实际工具，菜单说明不是开关状态。读取 phone_tools 的能力目录，优先使用直接能力。phone_call 的成功读回会附 phone_harness_observation ID；phone_finish 的 checks 必须关联这些新鲜ID，填写 criterion、observed、passed，并列 unresolved。缺少有效回执只保存为待核验。需要人处理时 phone_checkpoint 填 wait_reason（user_unlock/user_decision/external_service）再明确阻塞。只有实际读回才 phone_finish，然后继续原队列下一项。';
       const storePath=api.runtime.agent.session.resolveStorePath(cfg.session?.store,{agentId:binding.agentId});
       Promise.resolve().then(()=>api.runtime.agent.session.runWithWorkAdmission({storePath,sessionKey:binding.sessionKey},signal=>
         api.runtime.agent.runEmbeddedAgent({sessionId:binding.sessionId,sessionKey:binding.sessionKey,agentId:binding.agentId,

@@ -177,7 +177,7 @@ class ActivityLog:
             if test.get('attempt_at') and self.clock()-test['attempt_at']<300: return test
             test.update(status='sending',attempt_at=self.clock());self.save()
             try:
-                result=await self.send(test['id'],'Phone Harness · 活动提醒测试',
+                result=await self.send(test['id'],'Mopu · 活动提醒测试',
                     '这是你授权的手机活动提醒通道测试，不代表有人操作了手机。\n正式外部操作告警仍待实体触摸对照实测，当前没有启用。连续30秒无新操作后合并记录，附本段App名称及前台时长，提醒设5分钟冷却。')
             except asyncio.CancelledError:
                 test['status']='unknown';self.save();raise

@@ -3,8 +3,8 @@ import json
 import time
 import unittest
 from unittest.mock import AsyncMock, patch
-from phone_harness.device import Device
-from phone_harness.feedback import describe, screen_size
+from mopu.device import Device
+from mopu.feedback import describe, screen_size
 
 TAP='mobile_click_on_screen_at_coordinates'
 CONFIG={'serial':'test','adb':'/test/adb','backend_command':['/test/backend']}
@@ -70,7 +70,7 @@ class FeedbackTests(unittest.IsolatedAsyncioTestCase):
         class Reader:
             async def readline(self):return await lines.get()
         p.stdout=Reader()
-        with patch('phone_harness.device.asyncio.create_subprocess_exec',AsyncMock(return_value=p)),patch('phone_harness.device.os.killpg'):
+        with patch('mopu.device.asyncio.create_subprocess_exec',AsyncMock(return_value=p)),patch('mopu.device.os.killpg'):
             if guard:
                 with self.assertRaises(PermissionError):await d.backend(name,args,1,guard,'Codex')
             else:await d.backend(name,args,1,actor='Codex')

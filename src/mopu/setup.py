@@ -77,13 +77,13 @@ def configure(state, args):
     fd=os.open(destination,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
     with os.fdopen(fd,'w') as f: json.dump(config,f,indent=2);f.write('\n')
     assert json.loads(destination.read_text()) == config
-    return {'configured':True,'phone_bound':True,'private_config':str(destination),'next':'Run phone-harness install-app (macOS), or phone-harness open. Then click Connect.'}
+    return {'configured':True,'phone_bound':True,'private_config':str(destination),'next':'Run mopu install-app (macOS), or mopu open. Then click Connect.'}
 
 
 def doctor(state):
     state=Path(state); checks=[]
     try: config=json.loads((state/'config.json').read_text())
-    except (OSError,ValueError): return {'ready':False,'checks':[{'name':'configuration','ok':False,'detail':'Run phone-harness setup --install-dependencies first.'}]}
+    except (OSError,ValueError): return {'ready':False,'checks':[{'name':'configuration','ok':False,'detail':'Run mopu setup --install-dependencies first.'}]}
     def check(name,fn):
         try: fn();checks.append({'name':name,'ok':True})
         except Exception as e: checks.append({'name':name,'ok':False,'detail':str(e)})

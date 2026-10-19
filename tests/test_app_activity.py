@@ -5,8 +5,8 @@ import unittest
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
-from phone_harness.app_activity import AppActivityLog, AppActivityMonitor, parse_foreground, app_labels
-from phone_harness.activity import ActivityLog
+from mopu.app_activity import AppActivityLog, AppActivityMonitor, parse_foreground, app_labels
+from mopu.activity import ActivityLog
 
 FOCUS='  mCurrentFocus=Window{abc u0 com.android.settings/.Settings}'
 POLICY='  showing=false\n  occluded=false'
@@ -119,7 +119,7 @@ class MonitorTests(unittest.IsolatedAsyncioTestCase):
             m=AppActivityMonitor(d,a)
             await m.refresh_labels();await m.refresh_labels()
             d.backend.assert_awaited_once()
-            with patch('phone_harness.app_activity.read_foreground',AsyncMock(return_value=dict(SETTINGS))):await m.sample()
+            with patch('mopu.app_activity.read_foreground',AsyncMock(return_value=dict(SETTINGS))):await m.sample()
             self.assertEqual(a.apps.current['label'],'Actual Name');self.assertEqual(a.apps.current['label_source'],'device')
             self.assertNotIn('labels',a.apps.path.read_text())
 
@@ -130,7 +130,7 @@ class MonitorTests(unittest.IsolatedAsyncioTestCase):
             async def late(device):
                 a.data['enabled']=False
                 return SETTINGS
-            with patch('phone_harness.app_activity.read_foreground',late):
+            with patch('mopu.app_activity.read_foreground',late):
                 await AppActivityMonitor(d,a).sample()
             self.assertEqual(a.apps.data['visits'],[])
             self.assertEqual(a.apps.runtime['status'],'disabled')
@@ -139,11 +139,11 @@ class MonitorTests(unittest.IsolatedAsyncioTestCase):
         with tempfile.TemporaryDirectory() as root:
             a=ActivityLog(root);a.data['enabled']=True;a.apps.observe(SETTINGS)
             d=SimpleNamespace(connected=True,lockfile=True)
-            with patch('phone_harness.app_activity.read_foreground',AsyncMock(side_effect=RuntimeError)):
+            with patch('mopu.app_activity.read_foreground',AsyncMock(side_effect=RuntimeError)):
                 await AppActivityMonitor(d,a).sample()
             self.assertFalse(a.apps.data['visits'][0]['ongoing'])
             d.lockfile=None
-            with patch('phone_harness.app_activity.read_foreground',AsyncMock()) as read:
+            with patch('mopu.app_activity.read_foreground',AsyncMock()) as read:
                 await AppActivityMonitor(d,a).sample();read.assert_not_called()
 
 if __name__=='__main__':unittest.main()

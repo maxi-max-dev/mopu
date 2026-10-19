@@ -71,3 +71,9 @@ test('resume service waits for idle, uses host admission, and renews allowance o
     assert.equal(saved[identity].attempts.task,0);
   }finally{await service.stop();await fs.rm(dir,{recursive:true,force:true});}
 });
+
+test('declared human/service wait suppresses automatic host continuation',()=>{
+ const state={owner:'agent',device:{connected:true},lease_active:false,tasks:[{id:'a',agent:'owner',status:'paused',wait_reason:'user_decision'}]};
+ assert.equal(eligible(state,{identity:'owner'},false,{}),false);
+ state.tasks[0].wait_reason='';assert.equal(eligible(state,{identity:'owner'},false,{}),true);
+});

@@ -1,6 +1,6 @@
 {
   "id": "phone-harness",
-  "name": "Phone Harness",
+  "name": "Mopu",
   "description": "Shared phone console with per-conversation identity and human takeover",
   "activation": {
     "onStartup": true

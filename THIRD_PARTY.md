@@ -1,6 +1,6 @@
 # Third-party software and design references
 
-Phone Harness source is MIT licensed. Dependencies keep their own licenses and are not relicensed by this repository.
+Mopu source is MIT licensed. Dependencies keep their own licenses and are not relicensed by this repository.
 
 | Project | Role | License / source |
 |---|---|---|

@@ -1,10 +1,10 @@
 # Security model
 
-Phone Harness is a local single-user tool for an explicitly authorized USB Android device. It is not a sandbox for hostile agents or other programs running under the same OS account.
+Mopu is a local single-user tool for an explicitly authorized USB Android device. It is not a sandbox for hostile agents or other programs running under the same OS account.
 
 The production server binds to loopback, checks Host/Origin and requires a local token for API/video access. That token is available to the local viewer. Do not proxy the service to the LAN, a public tunnel or an untrusted multi-user host. Remote desktop to the trusted host is the supported remote-viewing approach.
 
-Private state under `~/.local/share/phone-harness` contains tokens, the device serial, original quiet settings, tasks, checkpoints and results. Do not commit it. Screenshots and tool outputs may contain private app content. There is no automatic telemetry or issue upload.
+Private state under `~/.local/share/mopu` (or reused `~/.local/share/phone-harness` for existing installations) contains tokens, the device serial, original quiet settings, tasks, checkpoints and results. Do not commit it. Screenshots and tool outputs may contain private app content. There is no automatic telemetry or issue upload.
 
 Human takeover revokes cooperative agent access; an already dispatched Android action may finish. Raw ADB tools outside this protocol are not constrained. The assistant must treat content displayed on the phone as untrusted data.
 

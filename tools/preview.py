@@ -5,9 +5,13 @@ Run python3 tools/preview.py, open http://127.0.0.1:18797. All data is synthetic
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 from datetime import datetime, timezone
-import argparse, json, time
+import argparse, json, time, sys
 ROOT = Path(__file__).resolve().parents[1]
-WEB = ROOT / 'src/phone_harness/web'
+WEB = ROOT / 'src/mopu/web'
+sys.path.insert(0,str(ROOT/'src'))
+from mopu.capabilities import catalog
+from mopu.device import ALLOWED
+from mopu.contracts import explanation
 state = {
  'owner':'agent','current':'demo-a','generation':1,'settings':{'close_pauses':True},
  'agents':[{'id':'demo-codex','name':'Codex','online':True},{'id':'demo-claude','name':'Claude','online':True},{'id':'demo-jarvis','name':'Jarvis','online':False}],
@@ -24,6 +28,11 @@ state['activity']={'enabled':True,'status':'listening','verified':False,'unread'
   {'id':'demo-settings','package':'com.android.settings','label':'设置','label_source':'device','first':stamp-180,'last':stamp-139,'seconds':41,'ongoing':False,'end_reason':'switched','inputs':{'agent':{'tap':2}}},
   {'id':'demo-clock','package':'com.android.deskclock','label':'时钟','label_source':'device','first':stamp-137,'last':stamp,'seconds':137,'ongoing':True,'inputs':{'human':{'tap':1}}}]}}
 
+# Synthetic examples for receipts/wait states; never touch the real queue.
+state['tasks'].extend([
+ {'id':'demo-receipt','agent':'demo-codex','agent_name':'Codex','title':'系统设置读回（合成示例）','instruction':'验证设置页面','status':'done','action':'已核验','checkpoint':'','result':'已读到设置前台','receipt':{'verification':'assistant_verified','scope':'合成示例，非真实手机验收','checks':[{'criterion':'设置已打开','observed':'com.android.settings','passed':True,'observed_at':datetime.now(timezone.utc).isoformat(),'tool':'mobile_get_foreground_app'}],'unresolved':[]}},
+ {'id':'demo-unverified','agent':'demo-codex','agent_name':'Codex','title':'等待结果核验（合成示例）','instruction':'检查设置','status':'unverified','action':'结果已保存，待核验','checkpoint':'已返回','result':'工具已返回','receipt':{'verification':'unverified','scope':'合成示例','checks':[],'unresolved':['尚未取得读回']}}
+])
 def refresh():
  now=datetime.now(timezone.utc).isoformat()
  state['device']['telemetry']['panel_at']=now
@@ -33,6 +42,11 @@ def refresh():
  'battery':{'percent':78,'status':'charging','plugged':True,'sources':['USB'],'temperature':28.4,'voltage_mv':4110},
  'camera':{'active':False,'apps':[]},'torch':{'active':False,'available':True},'projection':{'active':False,'apps':[]}}
  state['device']['health']={k:{'fresh':True,'age':0,'at':now,'data':v} for k,v in data.items()}
+ state['capabilities']=catalog(state['device']['connected'],state['owner'],set(ALLOWED),now)
+ head=next((t for t in state['tasks'] if t['status'] in ('running','queued','paused')),None)
+ for t in state['tasks']:
+  online=next((a['online'] for a in state['agents'] if a['id']==t['agent']),False)
+  t['wait']=explanation(t,state['owner'],state['device']['connected'],head['id'] if head else None,online)
  return state
 
 class Handler(BaseHTTPRequestHandler):

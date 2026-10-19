@@ -405,6 +405,62 @@ class Device:
             'haptic_disabled':settings['haptic_feedback_enabled'] == 0 if settings['haptic_feedback_enabled'] is not None else None})
         return self.telemetry
 
+    async def agent_swipe(self, arguments, generation, guard, actor):
+        """Use the console's scrcpy touch channel, inside the existing lease.
+
+        Never fall back to ADB or replay on transport failure. UP is cleanup only.
+        """
+        if time.monotonic()-self.observed_at > 120 or self.observed_generation != generation:
+            raise PermissionError('需要新观察；请先读取当前界面')
+        video = (self.width, self.height)
+        natural = screen_size(await self.shell('wm', 'size'))
+        if not natural or not all(video): raise ValueError('无法核实输入坐标尺寸')
+        w,h = (max(natural),min(natural)) if video[0]>video[1] else (min(natural),max(natural))
+        if abs((w/h)/(video[0]/video[1])-1) > .025: raise ValueError('画面与输入尺寸不一致，请重新观察')
+        a = dict(arguments)
+        direction = a.get('direction')
+        if direction not in ('up','down','left','right'): raise ValueError('无效滑动方向')
+        if ('x' in a) != ('y' in a): raise ValueError('起点必须同时包含x和y')
+        if 'x' not in a:
+            a['x'],a['y'] = {'up':(w*.5,h*.8),'down':(w*.5,h*.2),'left':(w*.8,h*.5),'right':(w*.2,h*.5)}[direction]
+            a.setdefault('distance',(h if direction in ('up','down') else w)*.6)
+        import math
+        for field in ('x','y','distance'):
+            if field in a and (isinstance(a[field],bool) or not isinstance(a[field],(int,float)) or not math.isfinite(a[field])):
+                raise ValueError('滑动坐标和距离必须是有限数字')
+        distance=a.get('distance',(h if direction in ('up','down') else w)*.3)
+        if not 0<=a['x']<w or not 0<=a['y']<h or distance<=0 or distance>max(w,h):
+            raise ValueError('滑动起点或距离越界')
+        x,y=a['x'],a['y']
+        ex,ey={'up':(x,max(0,y-distance)),'down':(x,min(h-1,y+distance)),
+               'left':(max(0,x-distance),y),'right':(min(w-1,x+distance),y)}[direction]
+        points=[[x/w,y/h],[ex/w,ey/h]]
+        cue=self.new_action({'kind':'swipe','label':{'up':'向上滑动','down':'向下滑动','left':'向左滑动','right':'向右滑动'}[direction],
+                             'points':points,'video':list(video)},'agent',actor)
+        started=False;last=(0,0)
+        async def packet(action, px, py):
+            await self.send(struct.pack('>BBQiiHHHII',2,action,(1<<64)-2,px,py,*video,0 if action==1 else 65535,0,0))
+        try:
+            for i in range(21):
+                if guard: guard()
+                if video!=(self.width,self.height): raise ValueError('画面尺寸已变化，请重新观察')
+                last=(min(video[0]-1,int((x+(ex-x)*i/20)/w*video[0])),min(video[1]-1,int((y+(ey-y)*i/20)/h*video[1])))
+                self.observed_at=0
+                started=True
+                await packet(0 if i==0 else 2,*last)
+                if i==0: await self.publish_action(cue)
+                if i<20: await asyncio.sleep(.018)
+            if guard: guard()
+            await self.publish_action(cue,'returned')
+            return {'content':[{'type':'text','text':'Swipe dispatched through console touch channel; read the screen to verify the outcome.'}]}
+        except (Exception, asyncio.CancelledError):
+            if started: await self.publish_action(cue,'uncertain')
+            raise
+        finally:
+            if started:
+                # Release only; never send another DOWN/MOVE after lease loss.
+                await packet(1,*last)
+
     async def backend(self, name=None, arguments=None, generation=None, guard=None, actor='助手'):
         if not self.connected or not self.lockfile:
             raise RuntimeError('手机未连接')
@@ -419,6 +475,25 @@ class Device:
             raise ValueError('输入与提交必须分开；此入口不自动提交')
         if name == 'mobile_press_button' and arguments.get('button') not in ('BACK','HOME','ENTER','DPAD_CENTER','DPAD_UP','DPAD_DOWN','DPAD_LEFT','DPAD_RIGHT'):
             raise ValueError('此会话不允许电源或音量按键改变安静状态')
+        if name == 'mobile_type_keys':
+            text = arguments.get('text')
+            if not isinstance(text,str) or not text or len(text.encode())>10000:
+                raise ValueError('文字须为1至10000字节，提交必须分开')
+            if time.monotonic()-self.observed_at>120 or self.observed_generation!=generation:
+                raise PermissionError('需要新观察；请先读取当前界面')
+            if guard: guard()
+            self.observed_at=0
+            data=text.encode()
+            cue=self.new_action({'kind':'text','label':'输入文字','points':[],'video':[self.width,self.height]},'agent',actor)
+            try:
+                await self.send(struct.pack('>BQBI',9,0,1,len(data))+data)
+                await self.publish_action(cue,'returned')
+            except (Exception,asyncio.CancelledError):
+                await self.publish_action(cue,'uncertain')
+                raise
+            return {'content':[{'type':'text','text':'Text paste dispatched through console clipboard channel; verify the field. No submit was sent.'}]}
+        if name == 'mobile_swipe_on_screen':
+            return await self.agent_swipe(arguments, generation, guard, actor)
         process = await asyncio.create_subprocess_exec(*self.config['backend_command'], stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL,
             env=dict(os.environ, MOBILEMCP_DISABLE_TELEMETRY='1', PATH=str(Path(self.config['adb']).parent)+os.pathsep+os.environ.get('PATH','')),
@@ -441,7 +516,7 @@ class Device:
         readonly = True
         cue = None
         try:
-            await request('initialize', {'protocolVersion':'2024-11-05','capabilities':{},'clientInfo':{'name':'phone-harness','version':'0.5.1'}})
+            await request('initialize', {'protocolVersion':'2024-11-05','capabilities':{},'clientInfo':{'name':'mopu','version':'0.14.0'}})
             process.stdin.write(b'{"jsonrpc":"2.0","method":"notifications/initialized"}\n')
             catalog = await request('tools/list', {})
             catalog['tools'] = [t for t in catalog['tools'] if t['name'] in ALLOWED]

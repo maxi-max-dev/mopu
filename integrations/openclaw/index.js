@@ -1,3 +1,4 @@
+import {existsSync} from 'node:fs';
 import fs from 'node:fs/promises';
 import {readFileSync} from 'node:fs';
 import path from 'node:path';
@@ -17,7 +18,7 @@ export function identityFor(ctx) {
 // Each OpenClaw conversation gets its own broker identity and lease. The model
 // cannot supply or select someone else's identity. There is no model worker here.
 export function createBridge(config = {}, deps = {}) {
-  const stateDir = config.stateDir || path.join(os.homedir(),'.local/share/phone-harness');
+  const stateDir = config.stateDir || (existsSync(path.join(os.homedir(),'.local/share/phone-harness')) ? path.join(os.homedir(),'.local/share/phone-harness') : path.join(os.homedir(),'.local/share/mopu'));
   const clients = new Map();
   const load = deps.load || (() => fs.readFile(path.join(stateDir,'endpoint.json'),'utf8'));
   const fetcher = deps.fetch || fetch;
@@ -36,7 +37,7 @@ export function createBridge(config = {}, deps = {}) {
   }
   return async function invoke(ctx, name, args) {
     try {
-      if (!(config.allowedAgents || ['main']).includes(ctx.agentId)) throw Error('This assistant is not enabled for Phone Harness');
+      if (!(config.allowedAgents || ['main']).includes(ctx.agentId)) throw Error('This assistant is not enabled for Mopu');
       if (!tools.some(t=>t.name===name)) throw Error('Unknown phone tool');
       const agent = identityFor(ctx);
       let client = clients.get(agent);
@@ -56,7 +57,7 @@ export function createBridge(config = {}, deps = {}) {
         const result = await post(endpoint, {...args,...client.identity,action,lease:client.lease || ''});
         if (action === 'wait' && result.lease) {client.lease=result.lease; delete result.lease;}
         if (action === 'finish') client.lease=null;
-        return action === 'call' ? result : text(result);
+        return ['call','step'].includes(action) ? result : text(result);
       };
       const result = client.chain.then(run);
       client.chain = result.catch(()=>{});
@@ -70,7 +71,7 @@ export function createBridge(config = {}, deps = {}) {
   };
 }
 
-export default {id:'phone-harness',name:'Phone Harness',register(api) {
+export default {id:'phone-harness',name:'Mopu',register(api) {
   const resume = createResumeService(api,identityFor);
   const invoke = createBridge(api.pluginConfig || {},{onInvoke:resume.bind});
   if (api.pluginConfig?.resumeOnRelease) {

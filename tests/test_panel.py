@@ -3,8 +3,8 @@ import tempfile
 import time
 import unittest
 from unittest.mock import AsyncMock, patch
-from phone_harness.device import Device, physical_panel
-from phone_harness.app import Console
+from mopu.device import Device, physical_panel
+from mopu.app import Console
 
 CONFIG = {'serial':'test-device','adb':'/test/adb','scrcpy_server':'/test/server','backend_command':['/test/node']}
 
@@ -35,7 +35,7 @@ class PanelControlTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_set_power_sends_explicit_boolean_and_reads_back(self):
         self.d.sample_panel=AsyncMock(side_effect=['off','on'])
-        with patch('phone_harness.device.asyncio.sleep',new=AsyncMock()): await self.d.set_panel(True)
+        with patch('mopu.device.asyncio.sleep',new=AsyncMock()): await self.d.set_panel(True)
         self.d.send.assert_awaited_once_with(bytes([10,1]))
         self.assertEqual(self.d.sample_panel.await_count,2)
         self.d.send.reset_mock(); self.d.sample_panel=AsyncMock(return_value='off')
@@ -44,7 +44,7 @@ class PanelControlTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_unconfirmed_action_is_not_replayed_or_claimed_success(self):
         self.d.sample_panel=AsyncMock(return_value='unknown')
-        with patch('phone_harness.device.asyncio.sleep',new=AsyncMock()):
+        with patch('mopu.device.asyncio.sleep',new=AsyncMock()):
             with self.assertRaises(RuntimeError): await self.d.set_panel(False)
         self.d.send.assert_awaited_once()
         with self.assertRaises(ValueError): await self.d.set_panel('false')
