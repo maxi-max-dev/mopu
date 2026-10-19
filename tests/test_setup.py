@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
-from phone_harness.setup import configure,select_device,executable
+from mopu.setup import configure,select_device,executable
 
 class SetupTests(unittest.TestCase):
     def test_explicit_missing_binary_does_not_silently_select_another(self):
@@ -21,7 +21,7 @@ class SetupTests(unittest.TestCase):
             root=Path(d);server=root/'server';server.write_text('test')
             backend=root/'backend';backend.write_text('test')
             args=argparse.Namespace(adb='adb',node='node',serial=None,scrcpy_server=str(server),mobile_mcp=str(backend),operation_lock=None,install_dependencies=False)
-            with patch('phone_harness.setup.executable',side_effect=lambda name,value:name),patch('phone_harness.setup.devices',return_value=[['phone','device']]),patch('phone_harness.setup.verify_dependencies'):
+            with patch('mopu.setup.executable',side_effect=lambda name,value:name),patch('mopu.setup.devices',return_value=[['phone','device']]),patch('mopu.setup.verify_dependencies'):
                 configure(root,args)
                 path=root/'config.json';original=path.read_bytes()
                 self.assertEqual(path.stat().st_mode & 0o777,0o600)

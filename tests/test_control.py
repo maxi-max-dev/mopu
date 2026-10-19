@@ -7,10 +7,10 @@ from pathlib import Path
 from unittest.mock import AsyncMock
 from aiohttp import web
 from aiohttp.test_utils import TestClient, TestServer
-from phone_harness.app import Console, secure, state, agent
-from phone_harness.tasks import Queue
-from phone_harness.device import Device
-from phone_harness.mcp import Client
+from mopu.app import Console, secure, state, agent
+from mopu.tasks import Queue
+from mopu.device import Device
+from mopu.mcp import Client
 
 
 CONFIG = {'serial':'test-device','adb':'/test/adb','scrcpy_server':'/test/server','backend_command':['/test/node']}

@@ -22,7 +22,7 @@ def ensure_console(state):
     if not url:
         if not (state/'config.json').exists(): raise RuntimeError('Create the private config.json first; see README.md')
         with (state/'console.log').open('ab') as log:
-            process = subprocess.Popen([sys.executable,'-m','phone_harness.cli','--state',str(state),'serve'],
+            process = subprocess.Popen([sys.executable,'-m','mopu.cli','--state',str(state),'serve'],
                 stdin=subprocess.DEVNULL,stdout=log,stderr=log,start_new_session=True)
         for _ in range(50):
             url = existing()

@@ -1,6 +1,6 @@
 # Contributing
 
-Phone Harness is an early local-first prototype. Small fixes with reproducible evidence are welcome. Start with an issue for transport, ownership or permission changes.
+Mopu is an early local-first prototype. Small fixes with reproducible evidence are welcome. Start with an issue for transport, ownership or permission changes.
 
 ## Develop without a phone
 
@@ -17,8 +17,8 @@ Run the software checks:
 
 ```sh
 .venv/bin/python -m unittest discover -s tests -v
-node --check src/phone_harness/web/app.js
-node --check src/phone_harness/web/actions.js
+node --check src/mopu/web/app.js
+node --check src/mopu/web/actions.js
 node --test tests/actions.test.cjs
 node --test integrations/openclaw/bridge.test.mjs
 .venv/bin/pip wheel --no-deps . -w dist

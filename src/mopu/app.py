@@ -1,3 +1,4 @@
+from .targets import validate_target, resolve_target
 import asyncio
 import contextlib
 import json
@@ -6,11 +7,13 @@ import signal
 import time
 from pathlib import Path
 from aiohttp import web
-from .device import Device
+from .device import Device, ALLOWED
 from .tasks import Queue, atomic, now
 from .input_activity import probe_inputs, InputMonitor
 from .activity import ActivityLog
 from .app_activity import AppActivityMonitor
+from .contracts import Observations, explanation
+from .capabilities import catalog, READS
 
 WEB = Path(__file__).parent / 'web'
 
@@ -27,6 +30,9 @@ class Console:
         self.token = secrets.token_urlsafe(32)
         self.origin = ''
         self.agents = {}
+        self.observations = Observations()
+        self.available_tools = None
+        self.tools_checked_at = None
         self.closed_view_at = None
         self.monitor = None
         self.error = None
@@ -40,6 +46,8 @@ class Console:
             lambda: not self.queue.current and not self.op.locked() and not self.device.active_touch and time.time()-self.activity.last_human>3)
 
     def disconnected(self):
+        self.available_tools = None
+        self.tools_checked_at = None
         self.activity.apps.end('offline')
         self.queue.invalidate('连接中断；先核实最后动作是否完成')
         self.queue.owner = 'paused'
@@ -53,7 +61,12 @@ class Console:
         telemetry['panel_age'] = round(age, 2) if age is not None else None
         if not self.device.connected or age is None or age > 5:
             telemetry['panel'] = 'unknown'
-        return {**self.queue.snapshot(), 'activity':self.activity.snapshot(self.device.connected), 'device': {'connected': self.device.connected,
+        queue = self.queue.snapshot()
+        head = self.queue.head()
+        for task in queue['tasks']:
+            online = time.monotonic()-self.agents.get(task['agent'], {}).get('seen', 0) < 90
+            task['wait'] = explanation(task, queue['owner'], self.device.connected, head['id'] if head else None, online)
+        return {**queue, 'capabilities':catalog(self.device.connected, queue['owner'], self.available_tools, self.tools_checked_at), 'activity':self.activity.snapshot(self.device.connected), 'device': {'connected': self.device.connected,
             'error': self.device.error, 'telemetry': telemetry, 'health': self.device.health_snapshot(), 'width': self.device.width,
             'height': self.device.height, 'geometry_note':'width/height describe the video stream only. Agent coordinates use mobile_get_screen_size and fresh element bounds; these can be larger.', 'frame_age': round(time.monotonic()-self.device.last_packet, 1) if self.device.last_packet else None},
             'agents': [{'id': k, 'name': a['name'], 'online': time.monotonic()-a['seen'] < 90} for k, a in self.agents.items()],
@@ -82,7 +95,13 @@ class Console:
         q = self.queue
         token = payload.get('lease', '')
         if action == 'submit':
-            return q.add(payload.get('title',''), payload.get('instruction',''), name, agent['name'])
+            required=payload.get('required_milestones',[])
+            if not isinstance(required,list) or len(required)>20 or any(not isinstance(k,str) or not k.strip() or len(k)>80 for k in required) or len(set(required))!=len(required):
+                raise ValueError('required_milestones必须为至多20个唯一阶段key')
+            task=q.add(payload.get('title',''), payload.get('instruction',''), name, agent['name'])
+            q.get(task['id'])['required_milestones']=required
+            task['required_milestones']=required;q.save()
+            return task
         if action == 'status':
             return self.snapshot()
         if action == 'wait':
@@ -92,7 +111,8 @@ class Console:
                     if claim: return claim
                 await asyncio.sleep(.4)
                 agent['seen'] = time.monotonic()
-            return {'waiting': True, 'owner': q.owner, 'head': q.head(), 'instruction': '等待人交回控制权或前序任务结束；可再次调用 phone_wait。不要另开控制通道。'}
+            own = next((t for t in self.snapshot()['tasks'] if t['agent']==name and t['status'] in ('queued','paused','running')), None)
+            return {'waiting': True, 'reason': own.get('wait') if own else {'code':'no_task','label':'没有本对话待执行任务','next_action':'无须继续等待'}, 'owner': q.owner, 'head': q.head(), 'instruction': '等待人交回控制权或前序任务结束；可再次调用 phone_wait。不要另开控制通道。'}
         q.check(name, token)
         if action == 'input_probe':
             async with self.op:
@@ -100,41 +120,147 @@ class Console:
                 result = await probe_inputs(self.device)
                 q.check(name, token)
                 return result
+        if action == 'milestone':
+            async with self.op:
+                task=q.check(name,token)
+                key=payload.get('key')
+                if not isinstance(key,str) or not key.strip() or len(key)>80: raise ValueError('阶段key需为1至80字')
+                receipt=self.observations.receipt(task['id'],q.generation,payload.get('checks'),[])
+                if receipt['verification'] != 'assistant_verified': raise ValueError('阶段必须有新鲜且通过的观察')
+                stages=task.setdefault('milestones',[])
+                old=next((m for m in stages if m['key']==key),None)
+                if old:
+                    if old['checks']==receipt['checks']: return {'saved':True,'duplicate':True,'milestone':old}
+                    raise ValueError('阶段key已使用；先观察并使用新的修订key，不覆盖历史')
+                if len(stages)>=20: raise ValueError('每次任务尝试至多20个阶段')
+                stage={'key':key,'checks':receipt['checks'],'recorded_at':now(),'generation':q.generation,
+                       'scope':'已发生的阶段观察；不是当前状态，不可替代最终读回'}
+                stages.append(stage);q.save()
+                return {'saved':True,'milestone':stage}
         if action == 'checkpoint':
-            q.checkpoint(name, token, payload.get('progress',''), payload.get('next_action',''))
+            q.checkpoint(name, token, payload.get('progress',''), payload.get('next_action',''), payload.get('wait_reason',''))
             return {'saved': True}
         if action == 'finish':
-            q.finish(name, token, payload.get('result',''), bool(payload.get('blocked')))
-            return {'saved': True}
+            task = q.check(name, token)
+            receipt = self.observations.receipt(task['id'], q.generation, payload.get('checks'), payload.get('unresolved'), bool(payload.get('blocked')))
+            required=task.get('required_milestones',[]) or payload.get('required_milestones',[])
+            if not isinstance(required,list) or len(required)>20 or any(not isinstance(k,str) or not k.strip() for k in required):
+                raise ValueError('required_milestones必须为至多20个阶段key')
+            present={m['key'] for m in task.get('milestones',[])}
+            missing=[k for k in required if k not in present]
+            receipt['milestones']=task.get('milestones',[])[:]
+            receipt['required_milestones']=required
+            if missing:
+                receipt['verification']='unverified'
+                receipt['unresolved'].append('缺少阶段验收：'+', '.join(missing))
+            q.finish(name, token, payload.get('result',''), bool(payload.get('blocked')), receipt)
+            return {'saved': True, 'task_id':task['id'], 'status':task['status'], 'receipt':receipt}
+        if action == 'step':
+            tool = payload.get('name')
+            target=payload.get('target')
+            if target is not None:
+                validate_target(target)
+                if tool!='mobile_click_on_screen_at_coordinates' or payload.get('arguments'):
+                    raise ValueError('target只用于单击，不能同时提供坐标参数')
+            mode = payload.get('observe', 'text')
+            expected = payload.get('expected_text')
+            settle_ms = payload.get('settle_ms',400)
+            if type(settle_ms) is not int or not 400<=settle_ms<=5000:
+                raise ValueError('settle_ms必须为400至5000的整数；等待不证明页面已加载')
+            attempts = payload.get('read_attempts',1)
+            if type(attempts) is not int or not 1<=attempts<=3 or (attempts>1 and (mode!='text' or expected is None)):
+                raise ValueError('read_attempts为1至3；多次读回必须指定文字预期')
+            if tool not in ALLOWED or tool in READS: raise ValueError('step只执行一个允许的输入动作')
+            if mode not in ('text','screenshot'): raise ValueError('observe必须为text或screenshot')
+            if expected is not None and (mode != 'text' or not isinstance(expected,str) or not expected.strip() or len(expected)>500):
+                raise ValueError('expected_text仅支持文字读回，且需为1至500字')
+            if any(not isinstance(payload.get(k),str) or not payload[k].strip() for k in ('progress','next_action','observation_id')):
+                raise ValueError('需提供进度、下一步和当前界面观察ID')
+            async with asyncio.timeout(55), self.op:
+                task=q.check(name,token)
+                self.observations.receipt(task['id'],q.generation,[{'criterion':'input source','observed':'current screen',
+                    'observation_id':payload['observation_id'],'passed':False}],[])
+                source=self.observations.records[payload['observation_id']]
+                if source['tool'] not in ('mobile_list_elements_on_screen','mobile_take_screenshot'):
+                    raise ValueError('输入必须基于界面文字或截图，不能使用应用列表等观察')
+                q.checkpoint(name,token,payload['progress'],payload['next_action'])
+                started=time.monotonic()
+                if target is not None:
+                    current=await self.agent_tool('call',{'name':'mobile_list_elements_on_screen','arguments':{}},name,token,agent)
+                    if current.get('isError'):return current
+                    point,reason=resolve_target(current.get('content',[]),target)
+                    if point is None:
+                        current['isError']=True
+                        current.setdefault('content',[]).append({'type':'text','text':json.dumps({'phone_harness_step':{'action_dispatched':False,'target_check':reason,'instruction':'未点击；基于本次新观察重新决定，不猜坐标或盲重试'}},ensure_ascii=False)})
+                        return current
+                    payload={**payload,'arguments':point}
+                result=await self.agent_tool('call',payload,name,token,agent)
+                if result.get('isError'): return result
+                for attempt in range(attempts):
+                    try:
+                        await asyncio.sleep(settle_ms/1000 if attempt==0 else .6)
+                        observed=await self.agent_tool('call',{'name':'mobile_take_screenshot' if mode=='screenshot' else 'mobile_list_elements_on_screen','arguments':{}},name,token,agent)
+                    except Exception as exc:
+                        raise RuntimeError('动作可能已生效，但读回失败；先重新观察，禁止重放。'+str(exc)) from exc
+                    if observed.get('isError'): return observed
+                    texts=[b.get('text','') for b in observed.get('content',[]) if b.get('type')=='text' and 'phone_harness_observation' not in b.get('text','')]
+                    check='not_requested' if expected is None else 'text_present' if any(expected in t for t in texts) else 'text_not_found'
+                    if check!='text_not_found':break
+                observed.setdefault('content',[]).append({'type':'text','text':json.dumps({'phone_harness_step':{
+                    'action_dispatched':True,'target_check':'target_matched' if target is not None else 'not_requested','read_attempts':attempt+1,'readback':mode,'settle_ms':settle_ms,'expected_text_check':check,'elapsed_ms':round((time.monotonic()-started)*1000),
+                    'instruction':'文字匹配不是任务完成；检查读回。未找到预期时先观察/换策略，不自动重复输入。'}},ensure_ascii=False)})
+                return observed
         if action in ('tools','call'):
+            if action == 'call' and payload.get('name') not in ALLOWED:
+                raise ValueError('需要有效的手机工具名称；读取目录请使用 phone_tools')
             async with self.op:
-                task = q.check(name, token)
-                if task['steps'] >= 200:
-                    q.finish(name, token, '已达200步上限，请缩小任务或人工检查', True)
-                    raise RuntimeError('任务达到步数上限')
-                task['steps'] += 1
-                tool_name = payload.get('name','')
-                task['action'] = {'mobile_click_on_screen_at_coordinates':'正在点击手机界面，随后核对结果',
-                    'mobile_double_tap_on_screen':'正在双击手机界面，随后核对结果',
-                    'mobile_long_press_on_screen_at_coordinates':'正在长按手机界面，随后核对结果',
-                    'mobile_swipe_on_screen':'正在滑动手机界面，随后重新观察',
-                    'mobile_type_keys':'正在输入任务所需文字，随后读回',
-                    'mobile_launch_app':'正在打开应用，随后核对界面',
-                    'mobile_press_button':'正在使用手机导航，随后重新观察'}.get(tool_name,
-                    '正在读取手机工具说明' if action == 'tools' else '正在观察并核对当前手机界面')
-                q.save()
-                try:
-                    async with asyncio.timeout(55):
-                        result = await self.device.backend(None if action == 'tools' else payload.get('name'), payload.get('arguments'), q.generation,
-                                                           lambda: q.check(name, token), agent['name'])
-                except Exception as exc:
-                    self.device.observed_at = 0
-                    if q.lease and q.lease['token'] == token:
-                        q.checkpoint(name, token, task['checkpoint'], '工具失败，先重新观察；不要重复上一步')
-                    raise exc
-                q.check(name, token)  # Discard late results after human takeover.
-                return result
+                return await self.agent_tool(action,payload,name,token,agent)
         raise ValueError('未知助手动作')
+
+    async def agent_tool(self, action, payload, name, token, agent):
+        q=self.queue
+        task = q.check(name, token)
+        if task['steps'] >= 200:
+            q.finish(name, token, '已达200步上限，请缩小任务或人工检查', True)
+            raise RuntimeError('任务达到步数上限')
+        task['steps'] += 1
+        tool_name = payload.get('name','')
+        if action == 'call' and tool_name not in READS:
+            self.observations.invalidate(task['id'])
+        task['wait_reason'] = ''
+        task['action'] = {'mobile_click_on_screen_at_coordinates':'正在点击手机界面，随后核对结果',
+            'mobile_double_tap_on_screen':'正在双击手机界面，随后核对结果',
+            'mobile_long_press_on_screen_at_coordinates':'正在长按手机界面，随后核对结果',
+            'mobile_swipe_on_screen':'正在滑动手机界面，随后重新观察',
+            'mobile_type_keys':'正在输入任务所需文字，随后读回',
+            'mobile_launch_app':'正在打开应用，随后核对界面',
+            'mobile_press_button':'正在使用手机导航，随后重新观察'}.get(tool_name,
+            '正在读取手机工具说明' if action == 'tools' else '正在观察并核对当前手机界面')
+        q.save()
+        try:
+            async with asyncio.timeout(55):
+                result = await self.device.backend(None if action == 'tools' else payload.get('name'), payload.get('arguments'), q.generation,
+                                                   lambda: q.check(name, token), agent['name'])
+        except Exception as exc:
+            self.observations.invalidate(task['id'])
+            self.device.observed_at = 0
+            if q.lease and q.lease['token'] == token:
+                q.checkpoint(name, token, task['checkpoint'], '工具失败，先重新观察；不要重复上一步')
+            raise exc
+        q.check(name, token)  # Discard late results after human takeover.
+        if action == 'tools':
+            self.available_tools = {t['name'] for t in result.get('tools', [])}
+            self.tools_checked_at = now()
+            result['capabilities'] = catalog(self.device.connected, q.owner, self.available_tools, self.tools_checked_at)
+        elif tool_name in READS and not result.get('isError'):
+            # Screen reads must also pass the backend's nonempty observation guard.
+            valid = bool(result.get('content'))
+            if tool_name in ('mobile_take_screenshot','mobile_list_elements_on_screen'):
+                valid = valid and self.device.observed_generation == q.generation and self.device.observed_at > 0
+            if valid:
+                obs = self.observations.record(task['id'], q.generation, tool_name)
+                result.setdefault('content', []).append({'type':'text','text':json.dumps({'phone_harness_observation':obs},ensure_ascii=False)})
+        return result
 
     async def control(self, data):
         action = data.get('action')
@@ -153,6 +279,8 @@ class Console:
             await self.activity.test_notification()
             return self.snapshot()
         if action == 'connect':
+            self.available_tools = None
+            self.tools_checked_at = None
             async with self.transition:
                 async with self.op:
                     if not self.device.connected:
@@ -166,9 +294,12 @@ class Console:
             if action == 'release' and not self.device.connected:
                 raise ValueError('请先连接手机')
             owner = {'takeover':'human', 'release':'agent', 'pause':'paused'}[action]
+            if action == 'release' and q.head(): q.head()['wait_reason'] = ''
             if action == 'pause' and q.owner == 'human': owner = 'human'
             await self.transition_to(owner, {'takeover':'手机交给你，助手停止读取和输入', 'release':'已交回原助手；下一步必须重新观察', 'pause':'全部手机任务已暂停'}[action])
         elif action in ('disconnect', 'reconnect'):
+            self.available_tools = None
+            self.tools_checked_at = None
             self.wanted, self.retry_at = False, None
             await self.transition_to('paused', '会话暂停，任务进度保留')
             async with self.op:
@@ -179,6 +310,7 @@ class Console:
                     self.wanted, self.retries = True, 0
         elif action in ('quiet', 'screen_off', 'panel_power', 'rotate'):
             async with self.op:
+                if q.current: self.observations.invalidate(q.current)
                 if not self.device.connected: raise ValueError('请先连接手机')
                 if action == 'quiet':
                     await self.device.quiet()
@@ -213,8 +345,9 @@ class Console:
             else: q.cancel(data['id'])
         elif action == 'retry':
             t = q.get(data['id'])
-            if t['status'] != 'blocked': raise ValueError('只有受阻任务可重新排队')
-            t.update(status='queued', action='等待原助手重新观察', prior_steps=t.get('prior_steps',0)+t['steps'], steps=0)
+            if t['status'] not in ('blocked','unverified','paused'): raise ValueError('只有受阻、待核验或暂停任务可重新排队')
+            t.setdefault('attempts',[]).append({k:t.get(k) for k in ('result','receipt','finished_at','steps','milestones')})
+            t.update(status='queued', milestones=[], wait_reason='', action='等待原助手重新观察', prior_steps=t.get('prior_steps',0)+t['steps'], steps=0)
             q.save()
         elif action == 'add':
             agent = self.agents.get(data.get('agent'))

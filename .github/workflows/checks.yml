@@ -18,8 +18,8 @@ jobs:
           node-version: '22'
       - run: python -m pip install .
       - run: python -m unittest discover -s tests -v
-      - run: node --check src/phone_harness/web/app.js
-      - run: node --check src/phone_harness/web/actions.js
+      - run: node --check src/mopu/web/app.js
+      - run: node --check src/mopu/web/actions.js
       - run: node --test tests/actions.test.cjs
       - run: node --test integrations/openclaw/bridge.test.mjs
       - run: python -m pip wheel --no-deps . -w dist

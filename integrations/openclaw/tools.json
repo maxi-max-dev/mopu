@@ -1,7 +1,7 @@
 [
   {
     "name": "phone_status",
-    "description": "Read phone connection, ownership and task queue. Does not read phone contents.",
+    "description": "Read connection, ownership, specific waiting reasons and capability availability. Does not read screen contents.",
     "inputSchema": {
       "type": "object",
       "properties": {},
@@ -20,6 +20,13 @@
         },
         "instruction": {
           "type": "string"
+        },
+        "required_milestones": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 20
         }
       },
       "required": [
@@ -41,7 +48,7 @@
   },
   {
     "name": "phone_tools",
-    "description": "Read actual Mobile MCP tool schemas while holding the phone lease.",
+    "description": "Read actual device tool schemas and capability catalog under the lease. Catalog availability is not proof of task success.",
     "inputSchema": {
       "type": "object",
       "properties": {},
@@ -70,6 +77,131 @@
     }
   },
   {
+    "name": "phone_step",
+    "description": "Execute ONE authorized input with checkpoint and fresh readback. Requires a current screen observation ID. No input retries. Choose screenshot for custom editors/webviews; expected_text is only a substring diagnostic, not task verification.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "arguments": {
+          "type": "object",
+          "default": {}
+        },
+        "target": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "text": {
+              "type": "string"
+            },
+            "label": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string"
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        },
+        "observation_id": {
+          "type": "string"
+        },
+        "progress": {
+          "type": "string"
+        },
+        "next_action": {
+          "type": "string"
+        },
+        "observe": {
+          "type": "string",
+          "enum": [
+            "text",
+            "screenshot"
+          ],
+          "default": "text"
+        },
+        "expected_text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "settle_ms": {
+          "type": "integer",
+          "minimum": 400,
+          "maximum": 5000,
+          "default": 400,
+          "description": "Bounded delay before first readback for lazy-loaded content; not proof of readiness. Input is never repeated."
+        },
+        "read_attempts": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3,
+          "default": 1
+        }
+      },
+      "required": [
+        "name",
+        "observation_id",
+        "progress",
+        "next_action"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "phone_milestone",
+    "description": "Seal a completed workflow stage BEFORE switching apps. Requires fresh passed checks. Key is immutable; reuse identical key/checks only for acknowledgement recovery. Historical stage evidence never replaces final fresh readback.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "checks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "criterion": {
+                "type": "string"
+              },
+              "observed": {
+                "type": "string"
+              },
+              "observation_id": {
+                "type": "string"
+              },
+              "passed": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "criterion",
+              "observed",
+              "observation_id",
+              "passed"
+            ],
+            "additionalProperties": false
+          },
+          "minItems": 1,
+          "maxItems": 20
+        }
+      },
+      "required": [
+        "key",
+        "checks"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "phone_checkpoint",
     "description": "Save completed progress and describe the next phone action so the user can understand and interrupt it.",
     "inputSchema": {
@@ -80,6 +212,16 @@
         },
         "next_action": {
           "type": "string"
+        },
+        "wait_reason": {
+          "type": "string",
+          "enum": [
+            "",
+            "user_unlock",
+            "user_decision",
+            "external_service"
+          ],
+          "default": ""
         }
       },
       "required": [
@@ -91,7 +233,7 @@
   },
   {
     "name": "phone_finish",
-    "description": "Record verified results or a specific blocker and release the phone. Never claim success from a tool acknowledgement alone.",
+    "description": "Save results and release the phone. To mark verified, supply checks referring to broker-issued phone_harness_observation IDs from fresh reads after the last input. Otherwise the result is saved as unverified. Never use tool acknowledgements as proof. Store only minimal non-sensitive readbacks.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -101,6 +243,48 @@
         "blocked": {
           "type": "boolean",
           "default": false
+        },
+        "required_milestones": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 20
+        },
+        "checks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "criterion": {
+                "type": "string"
+              },
+              "observed": {
+                "type": "string"
+              },
+              "observation_id": {
+                "type": "string"
+              },
+              "passed": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "criterion",
+              "observed",
+              "observation_id",
+              "passed"
+            ],
+            "additionalProperties": false
+          },
+          "maxItems": 20
+        },
+        "unresolved": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 20
         }
       },
       "required": [

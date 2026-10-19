@@ -10,7 +10,7 @@ let rendered = 0, lastFrame = 0, frameWindow = 0, fps = 0, packetSize = {width:0
 let showHistory = false;
 let toastTimer, queueSignature = '', detailId = null, controlBusy = false, pointer = null;
 let panelBusy = false, previousPanel = 'unknown', stateReceivedAt = 0;
-const labels = {queued:'等待执行',running:'正在执行',paused:'已暂停',done:'已完成',blocked:'需要处理',cancelled:'已结束'};
+const labels = {queued:'等待执行',running:'正在执行',paused:'已暂停',done:'已完成',unverified:'结果待核验',blocked:'需要处理',cancelled:'已结束'};
 function toast(text) { $('toast').textContent = text; $('toast').hidden = false; clearTimeout(toastTimer); toastTimer=setTimeout(()=>$('toast').hidden=true,6000); }
 function element(tag, cls, text) { const node=document.createElement(tag); if(cls)node.className=cls; if(text!==undefined)node.textContent=text; return node; }
 async function api(path, body) {
@@ -36,6 +36,7 @@ $('historyTab').onclick=()=>{showHistory=true;renderQueue();};
 $('closePauses').onchange=()=>control('close_preference',{enabled:$('closePauses').checked});
 $('focus').onclick=()=>{const focused=document.body.classList.toggle('focus');$('focus').setAttribute('aria-pressed',String(focused));if(focused)taskPane(false);fitVideo();};
 $('settingsOpen').onclick=()=>show('settings');
+$('capabilitiesOpen').onclick=()=>{renderCapabilities();show('capabilitiesDetail');};
 $('integrationOpen').onclick=()=>show('integration');
 for (const action of ['connect','takeover','release','pause','reconnect','rotate']) $(action).onclick=()=>control(action);
 $('panelPower').onclick=async()=>{if(controlBusy||panelBusy)return;const on=panelState()==='off';panelBusy=true;renderPanel();try{await control('panel_power',{on});}finally{panelBusy=false;renderPanel();}};
@@ -205,7 +206,41 @@ document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!$('drawerS
 document.querySelectorAll('[data-key]').forEach(button=>button.onclick=()=>send({type:'key',code:Number(button.dataset.key)}));
 $('textOpen').onclick=()=>{if(hasControl())show('textDialog');};
 $('textForm').onsubmit=event=>{event.preventDefault();if(send({type:'text',text:$('phoneText').value})){$('textDialog').close();$('phoneText').value='';canvas.focus();}};
-function detail(id){const task=state.tasks.find(task=>task.id===id);if(!task)return;detailId=id;$('detailTitle').textContent=task.title;const box=$('detailContent');box.replaceChildren(element('p','task-id',task.agent_name+' · '+labels[task.status]+' · '+task.id));for(const [label,value]of [['任务要求',task.instruction],['已保存进度',task.checkpoint],['当前动作',task.action],['结果',task.result]]){if(value)box.append(element('h3','',label),element('pre','',value));}if(!$('taskDetail').open)show('taskDetail');}
+function taskLabel(task){
+ if(task.status==='done')return task.receipt?.verification==='assistant_verified'?'原助手已核验':'历史完成 · 无结构化回执';
+ return task.wait?.label||labels[task.status]||task.status;
+}
+function renderCapabilities(){
+ const box=$('capabilitiesContent'),c=state?.capabilities;box.replaceChildren();
+ if(!c){box.append(element('p','note','当前服务尚未提供能力目录，请更新服务后重载。'));return;}
+ for(const x of c.items){
+  const row=element('section','capability-row');
+  row.append(element('strong','',x.label),element('span','capability-state',({provided:'设备已提供',unconfirmed:'设备尚未确认',unavailable:'设备未提供'})[x.availability]));
+  row.append(element('p','',`${x.route==='direct'?'直接能力':'界面操作'} · ${x.access==='read'?'读取':'会改变手机状态'} · 需本任务控制权`));
+  row.append(element('p','note',x.result_semantics),element('code','',x.name));box.append(row);
+ }
+ box.append(element('p','note',c.health),element('p','note',c.limits.join('；')));
+}
+function detail(id){
+ const task=state.tasks.find(task=>task.id===id);if(!task)return;detailId=id;$('detailTitle').textContent=task.title;
+ const box=$('detailContent');box.replaceChildren(element('p','task-id',task.agent_name+' · '+taskLabel(task)+' · '+task.id));
+ for(const [label,value]of [['任务要求',task.instruction],['已保存进度',task.checkpoint],['当前动作',task.action],['继续方式',task.wait?.next_action],['结果',task.result]]){
+  if(value)box.append(element('h3','',label),element('pre','',value));
+ }
+ if(task.milestones?.length){
+  box.append(element('h3','','已验收阶段'),element('p','note','以下为发生时的读回，最终结果仍需重新核验。'));
+  for(const m of task.milestones){const row=element('section','receipt-check');row.append(element('strong','',m.key));for(const c of m.checks)row.append(element('p','',c.criterion+'：'+c.observed));row.append(element('small','',new Date(m.recorded_at).toLocaleString()));box.append(row);}
+ }
+ const r=task.receipt;
+ if(r){
+  box.append(element('h3','','完成回执'),element('p','note',r.scope));
+  for(const c of r.checks){const row=element('section','receipt-check');row.append(element('strong','',(c.passed?'✓ ':'待处理 · ')+c.criterion),element('p','',c.observed),element('small','',`${new Date(c.observed_at).toLocaleString()} · ${c.tool}`));box.append(row);}
+  if(!r.checks.length)box.append(element('p','note','尚无与手机读回关联的验收项。'));
+  for(const issue of r.unresolved)box.append(element('p','receipt-unresolved','未解决：'+issue));
+ }
+ if(task.attempts?.length){const history=element('details');history.append(element('summary','',`此前尝试 ${task.attempts.length} 次`));for(const a of task.attempts)history.append(element('pre','',a.result||'未完成'));box.append(history);}
+ if(!$('taskDetail').open)show('taskDetail');
+}
 function renderQueue(){
  const signature=JSON.stringify([state.tasks,state.agents,showHistory]);if(signature===queueSignature)return;queueSignature=signature;
  const box=$('taskList');box.replaceChildren();
@@ -214,13 +249,13 @@ function renderQueue(){
  $('queueTab').classList.toggle('selected',!showHistory);$('queueTab').setAttribute('aria-pressed',String(!showHistory));$('historyTab').setAttribute('aria-pressed',String(showHistory));$('historyTab').classList.toggle('selected',showHistory);$('historyTab').textContent='记录 '+state.tasks.filter(t=>['done','cancelled'].includes(t.status)).length;
  if(!tasks.length)box.append(element('p','queue-empty','把需要手机完成的任务交给已接入的助手。任务、进度和结果都会留在这里。'));
  tasks.forEach((task,index)=>{
-  const row=element('article','task '+task.status);row.tabIndex=0;row.setAttribute('aria-label',task.title+'，'+labels[task.status]);
-  const top=element('div','task-top');top.append(element('span','task-index',String(index+1).padStart(2,'0')),element('span','task-agent',task.agent_name),element('span','task-status',labels[task.status]));row.append(top,element('div','task-title',task.title),element('div','task-action',task.action));
+  const row=element('article','task '+task.status);row.tabIndex=0;row.setAttribute('aria-label',task.title+'，'+taskLabel(task));
+  const top=element('div','task-top');top.append(element('span','task-index',String(index+1).padStart(2,'0')),element('span','task-agent',task.agent_name),element('span','task-status',taskLabel(task)));row.append(top,element('div','task-title',task.title),element('div','task-action',task.wait?.code==='running'?task.action:task.wait?.next_action||task.action));
   const controls=element('div','task-controls');
   function button(text,action,args={}){const b=element('button','',text);b.setAttribute('aria-label',text==='↑'?'上移任务':text==='↓'?'下移任务':text);b.onclick=event=>{event.stopPropagation();control(action,{id:task.id,...args});};controls.append(b);}
   if(['queued','paused'].includes(task.status)){button('↑','move',{direction:'up'});button('↓','move',{direction:'down'});button('优先执行','prioritize');}
-  if(['queued','paused','running','blocked'].includes(task.status))button('结束','cancel');
-  if(task.status==='blocked')button('重新排队','retry');
+  if(['queued','paused','running','blocked','unverified'].includes(task.status))button('结束','cancel');
+  if(['blocked','unverified'].includes(task.status)||(task.status==='paused'&&task.wait_reason))button('处理后重新排队','retry');
   if(controls.children.length)row.append(controls);row.onclick=()=>detail(task.id);row.onkeydown=event=>{if(event.key==='Enter'&&event.target===row)detail(task.id);};box.append(row);
  });
  const agents=$('agents');agents.replaceChildren();if(!state.agents.length)agents.textContent='尚无助手接入';
@@ -235,13 +270,13 @@ function render(){
  $('ownerDot').className='owner-dot '+owner;
  const names={human:'你正在控制手机',agent:current?current.agent_name+' 正在操作':'助手控制已开启',paused:'手机任务已暂停',transition:'正在交接控制权'};
  $('ownerTitle').textContent=connected?(names[owner]||'等待连接'):'会话未开始';
- $('ownerDescription').textContent=!connected?(state.device.error||'连接 USB 手机，开始本地投屏'):owner==='human'?'助手已停止读取和输入，你可以直接操作':owner==='agent'?(current?.action||(head?'等待 '+head.agent_name+' 领取「'+head.title+'」':'等待助手添加手机任务')):owner==='transition'?'等待已发出的动作结束；后续动作已停止':'任务进度已保留，交回后重新观察当前画面';
+ $('ownerDescription').textContent=!connected?(state.device.error||'连接 USB 手机，开始本地投屏'):owner==='human'?'助手已停止读取和输入，你可以直接操作':owner==='agent'?(current?.wait?.label&&current.wait.code!=='running'?current.wait.label+' · '+current.wait.next_action:current?.action||(head?'等待 '+head.agent_name+' 领取「'+head.title+'」':'等待助手添加手机任务')):owner==='transition'?'等待已发出的动作结束；后续动作已停止':'任务进度已保留，交回后重新观察当前画面';
  $('ownerTitle').title=$('ownerDescription').textContent;
  $('connect').hidden=connected;$('takeover').hidden=!connected||owner==='human';$('release').hidden=!connected||owner==='agent';$('pause').hidden=!connected||owner==='human'||owner==='paused';
  for(const button of document.querySelectorAll('[data-key],#textOpen,#rotate'))button.disabled=!hasControl();
  $('quiet').disabled=!connected;
  canvas.classList.toggle('controllable',hasControl());
- const count=state.tasks.filter(t=>['queued','paused','running','blocked'].includes(t.status)).length;$('queueCount').textContent=count;$('queueCount').hidden=!count;
+ const count=state.tasks.filter(t=>['queued','paused','running','blocked','unverified'].includes(t.status)).length;$('queueCount').textContent=count;$('queueCount').hidden=!count;
  $('orientationLabel').textContent=state.device.width>state.device.height?'转竖屏':'转横屏';
  renderPanel();
  renderHealth();
@@ -249,6 +284,7 @@ function render(){
  else if(!rendered){$('stageLabel').hidden=false;$('stageLabel').textContent='正在接收实时画面…';}
  $('events').replaceChildren(...state.events.slice(-12).reverse().map(event=>{const row=element('div');row.append(element('time','',new Date(event.at).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})),document.createTextNode(event.message));return row;}));
  renderQueue();
+ if($('capabilitiesDetail').open)renderCapabilities();
 }
 async function poll(){try{state=await api('state');stateReceivedAt=performance.now();render();}catch(error){actionOverlay.clear();$('connection').textContent='本地服务已断开';$('stageLabel').hidden=false;$('stageLabel').textContent='连接中断，画面与输入已暂停';if(state){state.owner='paused';state.device.connected=false;}renderPanel();renderHealth();canvas.classList.remove('controllable');}finally{setTimeout(poll,1000);}}
 function resetDecoder(){if(decoder&&decoder.state!=='closed')decoder.close();decoder=null;config=null;needKey=true;}

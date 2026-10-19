@@ -1,4 +1,15 @@
-# Validation scope — 0.7.0
+# Validation scope — Mopu 0.14.0
+
+## Mopu rename acceptance — 2026-10-19
+
+- 146 Python tests and 18 JavaScript tests passed; a clean virtual environment installed the wheel and passed the Python suite.
+- Both `mopu` and legacy `phone-harness` completed stdio MCP initialization as Mopu 0.14.0, returned the same nine-tool catalog and read the existing connected console.
+- The installed macOS Mopu app showed the renamed title, version 0.14.0 and live USB connection. Physical panel remained off; quiet status was read back.
+- All 36 pre-migration task records remained identical and config bytes were unchanged. An existing client successfully queued a new task after migration.
+- All 23 runtime source files matched the installed package. The old app path points to Mopu; the previous bundle and source are backed up privately.
+- Human ownership was retained. This acceptance checks the rename and connectivity, not a new cross-app task or physical touch-alert acceptance. OpenClaw adapter files were updated and config validated; the running gateway was not restarted.
+
+## Earlier acceptance history
 
 Local acceptance on 2026-10-17 (Australia/Brisbane). This is a prototype build, not a published service or evidence of adoption.
 
@@ -127,6 +138,50 @@ Local acceptance on 2026-10-17 (Australia/Brisbane). This is a prototype build, 
 - Physical USB unplug/replug, cold boot, multi-day unattended operation, Windows, Linux and other Android models are not hardware-accepted.
 - Silent settings are software readbacks, not acoustic measurements; third-party keyboard/app vibration and OEM/emergency audio are not comprehensively tested.
 - Codex/Claude Code require their original host conversation to keep running or be resumed by the user. The optional OpenClaw continuation runs within the original host. The product does not sandbox unrelated raw ADB programs and does not expose a remote Internet endpoint.
-- Source is published as a GitHub preview at https://github.com/maxi-max-dev/phone-harness. No package registry release, automatic feedback service or user adoption is claimed.
+- Source is published as a GitHub preview at https://github.com/maxi-max-dev/mopu. No package registry release, automatic feedback service or user adoption is claimed.
 
 Evidence containing phone UI and local paths is stored privately in the testing host's state directory and excluded from this distributable.
+
+## Version 0.9 local acceptance — 2026-10-18
+
+- Added broker-linked acceptance receipts, explicit waiting reasons and a backend-confirmed capability catalog. Legacy result-only finishes remain unverified; historical tasks are not rewritten. A receipt means the original assistant judged new observations, not independent semantic verification.
+- 107 Python tests passed, including forged/stale/cross-task/cross-lease references, input and uncertain-call invalidation, empty/error observations, text-only finish, persisted receipts, retry history, declared-wait suppression, exact next-action preservation and malformed call rejection. 18 JavaScript tests passed (11 action feedback, 7 OpenClaw adapter); JS syntax checks passed.
+- Synthetic browser UI displayed capability and receipt sheets. Installed native app showed version 0.9.0 and decoded the actual USB stream; phone_tools confirmed all 14 permitted tools. This confirms backend availability, not every tool's end-to-end behavior.
+- Real task d392f28880a2 attempted Settings/Battery acceptance under an exclusive lease. Ordinary upward swipe, unlocked-icon tap, Settings launch and HOME returned acknowledgements, but fresh screen trees still showed SystemUI's swipe-only lock screen. No credential prompt was observed and no credential was entered. Therefore the task was stored as blocked with a failed acceptance criterion, broker observation/time and unresolved item. Settings/Battery navigation is **not accepted in this run**. Logical wakefulness was Awake, physical panel Off and quiet telemetry true. The precise input failure remains unresolved; the UI being readable is not proof input worked.
+- Human ownership was restored. Previous task history and local backups were preserved. No public release/push, no physical-input calibration claim, and no live Jarvis schema-reload claim.
+
+
+## Version 0.9.1 — swipe-only unlock and completed acceptance
+
+- Assistant swipes now use the same scrcpy touch packet path as the console, within the existing exclusive lease. Device-to-video coordinates are checked/scaled, each motion checks ownership, interrupted pointers receive UP cleanup, and failures never fall back or replay. Other input tools retain their existing backend.
+- 112 Python checks passed, adding wire-coordinate, mid-gesture takeover, stale generation, invalid geometry and failure/no-replay tests. Existing 18 JavaScript checks passed in 0.9.0; JavaScript was not changed here.
+- Real task d392f28880a2 was retried, preserving the prior failed receipt. A swipe beginning on the bottom unlocked-icon region still did not dismiss the lock screen even over scrcpy. Moving the start to the observed middle blank region (300,1600 → 300,500 at 1080×2400) succeeded. Thus the prior user-unlock blocker was premature; transport difference alone is not an established root cause, and the old ADB path at the corrected start was not isolated/tested.
+- The original assistant then scrolled Settings, clicked Battery via the existing backend and read the actual Battery page: 79%, connected but not charging. Two fresh broker-linked checks completed the original task with assistant_verified. No settings were changed. Native UI showed both passed checks and one preserved previous attempt. Human ownership restored; panel Off and quiet telemetry true.
+
+## 0.10.0：实机多 App 任务与单步读回（2026-10-18）
+
+新增 `phone_step`：验证当前屏幕观察与租约、保存检查点、执行一个动作并返回新文字或截图。`expected_text` 只是文字匹配，不代表任务完成；读回失败不自动重放。文字输入改用现有控制台 scrcpy 剪贴板粘贴通道，输入与提交分离。
+
+实机完成：计算器128×3+76=460；Moto笔记保存计算结果并重开核对；Chrome从example.com进入IANA说明页并阅读。高德停在首次协议，路线查询未完成。升级后中文标题直接写入，退出重开仍保存。121项Python、18项JavaScript检查通过。自定义编辑器/WebView仍需截图；队列不启动模型；OpenClaw适配文件已更新但网关未重启验证。
+
+## 0.11.0：跨 App 阶段验收（2026-10-18）
+
+提交时可声明 `required_milestones`；`phone_milestone` 在切换 App 前封存新鲜的阶段读回。阶段 key 不可覆盖，历史观察不会冒充当前状态；最终完成仍必须有新鲜读回，缺必需阶段则待核验。控制台详情展示阶段；中断续接保留，重试保留旧尝试并重置本次阶段。`phone_step` 可用 `read_attempts=1..3` 等待预期文字，仅重复读取，不重放输入。
+
+真机完成：旧预算笔记→计算器→原笔记修订529元；Chrome官方说明→中文摘要笔记→重开；设置实时256GB/39GB→计算器217→中断续接→存储笔记重开。后两条使用0.11阶段约束。130项Python、18项JS通过；本机安装运行。OpenClaw文件更新但网关未重启，不宣称活跃Jarvis加载。仅3个有界任务样本，不是所有App稳定性或成功率证明。
+
+## 0.12.0：日常购物重复验收（2026-10-18）
+
+在既有0.11实现上加入精确目标点击：输入前重新读取目标，缺失/歧义/禁用/无有效坐标则不派发点击；严格解析后端元数据，不把网页文字中的伪坐标或disabled字样当元数据。9项新增Python用例覆盖重新定位、消失不点击、歧义/禁用、坐标冲突、接管、可见文字伪元数据；合计139项Python通过，18项JS通过。
+
+- 购物比价→日历：d030aac06c6a / 619f02b79860 / 8d833dcd2d4d。手机Chrome实读JB Hi-Fi型号MWVT3X/A与Officeworks代码APMWVT3XA，Apple20W两店均A$29；运费、门店库存未知。唯一PH购物比较1018本地日程重开后内容、两条来源链接、不提醒、不重复正确。第二/第三轮复用原日程，目标日期仍1条。
+- 官方说明书→超级文件：2629bbc478c8 / 709375ffb3cc / 8170fde78044。Apple官方20W说明书56页，下载后由超级文件独立打开并截图验证实际正文。三轮仅1份20W-usb-c-power-adapter-ug.pdf（文件管理器1.3MB），后两轮复用，无编号副本；第三轮从桌面开始并经文档/PDF分类定位。
+- 实际异常：Chrome下载完成toast的打开入口会消失，改用持久文件列表；超级文件首次推广遮盖文档入口，fresh target返回target_missing/action_dispatched=false，关闭推广后继续；Motorola日历切换全天会重置提醒且禁用提醒编辑，改为普通时段后设置不提醒并重开验证。这些观察写入操作skill。两应用协议已有用户当次明确许可；日历短信权限拒绝；未购买、上传或发送。
+- 这6个是同日同设备的有限样本，有原助手持续观察/决策，不是无人值守稳定率。零售商通过Chrome访问，未测试淘宝/京东登录、购物车、优惠券、付款、复杂规格组合；价格仅当次显示，非到手价。没有后台模型启动、长期运行、断网恢复或活跃Jarvis重新加载证明。OpenClaw适配文件同步，网关未重启。
+- 最终严格解析包安装后的目标点击兼容性另作只读烟测，不把它计为第7个完整购物任务。包含手机内容的原始记录留在本机私有state，发行源码仅含代码/测试/说明，不含用户截图或队列。
+
+## 0.13.0 shopping acceptance (2026-10-18)
+
+`phone_step` adds bounded `settle_ms=400..5000` before the first readback (default400) for observed lazy-loaded screens. It never repeats input; takeover is rechecked before reading. Waiting is not a readiness assertion. Shopping skill guidance now separates SKU, promotion eligibility/stacking, display currency and unknown delivery fees.
+
+Physical G100: three repeated Xiaohongshu F63 white/quantity1 checks sealed SKU, coupon and shipping stages; all agreed on CNY399−71=328 (approximately AUD71.33), black sold out. Cross-border freight remains unknown, so all three final receipts are unverified. No coupon claim, cart addition, checkout, order or payment. Twelve 3000ms screenshot readbacks (two SKU, ten detail swipes) were inspected; cache/network were uncontrolled, not a general reliability rate. 142 Python and18 JavaScript tests passed;22 installed runtime files match source. Local0.13 only; public release unchanged; OpenClaw files copied without gateway restart.

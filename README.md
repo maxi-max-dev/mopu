@@ -1,18 +1,24 @@
-# Phone Harness
+# Mopu
 
-[中文](README.zh-CN.md) · [Preview releases](https://github.com/maxi-max-dev/phone-harness/releases) · [Report an issue](https://github.com/maxi-max-dev/phone-harness/issues/new/choose)
+Formerly Phone Harness. See [migration and compatibility](docs/migration-mopu.md).
+
+[中文](README.zh-CN.md) · [Preview releases](https://github.com/maxi-max-dev/mopu/releases) · [Report an issue](https://github.com/maxi-max-dev/mopu/issues/new/choose)
 
 A local Android control console shared by humans and their AI assistants.
 
 **The assistant you give the task to remains its executor.** Codex, Claude Code, Jarvis or another MCP client can use the same phone. This project supplies a screen, tools, task queue and ownership protocol. Model execution stays in the original assistant host; the optional OpenClaw adapter can resume that host's original conversation after human control is returned.
 
-Version 0.7.0 is an **MIT-licensed open-source preview** of a local, single-phone prototype. The current implementation uses Unix file locks and is intended for macOS/Linux; Windows is not supported yet. Real-device acceptance is limited to the device and capabilities listed in `VALIDATION.md`.
+Version 0.14.0 is a **local MIT-licensed preview** (the public release remains 0.6.0) of a local, single-phone prototype. The current implementation uses Unix file locks and is intended for macOS/Linux; Windows is not supported yet. Real-device acceptance is limited to the device and capabilities listed in `VALIDATION.md`.
 
-![Phone Harness light console — synthetic demonstration](docs/console-demo.png)
+![Mopu light console — synthetic demonstration](docs/console-demo.png)
 
 *Illustrative UI preview. The phone screen and task data are synthetic; no real phone content is shown.*
 
 ## What it does
+
+- Structured completion receipts link each acceptance check to a fresh broker-issued phone observation. Text-only completion is retained as **unverified**; old history is preserved and labeled as lacking structured receipts. The assistant judges meaning; the broker validates task, lease, age and input ordering, not semantic truth.
+- Waiting explanations distinguish ownership, disconnected phone, queue, stopped assistant, explicit user/service wait and pending verification. Explicit waits suppress automatic re-claim until handback/retry.
+- A capability catalog comes from the actual allowlist and is confirmed by the connected backend's tool schemas. Direct app/URL capabilities and UI interactions remain inside the same ownership lease; availability does not prove permissions or task success.
 
 - Real H.264 scrcpy video in a macOS app window or browser, with pointer, navigation keys and explicit Unicode paste.
 - Visible action feedback: large tap rings, swipe paths/arrows and short action labels. Human input is amber; assistant input is lavender. Released human gestures fade within 450 ms, assistant gestures within 900 ms; a new gesture retires the preceding one within 120 ms, without accumulating a click history. Session settings offer three sizes or hide the overlay. It is desktop-only and does not show typed text. A cue means input was dispatched, not that the intended UI result was verified.
@@ -32,22 +38,22 @@ Version 0.7.0 is an **MIT-licensed open-source preview** of a local, single-phon
 Requirements: Python 3.11+, Node.js/npm and Android platform-tools (`adb`) from their official projects. macOS desktop installation also needs Apple Command Line Tools. Linux uses a WebCodecs-capable Chromium browser. Windows is not supported yet.
 
 ```sh
-git clone https://github.com/maxi-max-dev/phone-harness.git
-cd phone-harness
+git clone https://github.com/maxi-max-dev/mopu.git
+cd mopu
 python3 -m venv .venv
 .venv/bin/pip install .
-.venv/bin/phone-harness setup --install-dependencies
-.venv/bin/phone-harness doctor
-.venv/bin/phone-harness install-app       # macOS: creates ~/Applications/Phone Harness.app
+.venv/bin/mopu setup --install-dependencies
+.venv/bin/mopu doctor
+.venv/bin/mopu install-app       # macOS: creates ~/Applications/Mopu.app
 # Alternatively, on macOS or Linux:
-.venv/bin/phone-harness open              # opens the browser viewer
+.venv/bin/mopu open              # opens the browser viewer
 ```
 
 Connect/unlock the USB phone and authorize debugging before setup. Setup binds the only authorized USB phone; with several phones use `--serial`. It downloads the official scrcpy **5.0.1 server**, checks its pinned SHA-256, installs Mobile MCP **1.0.9** into private state (retaining npm's lockfile), and writes a private configuration with mode 0600. It refuses to overwrite an existing configuration. Host prerequisites are not silently installed or upgraded.
 
 For offline/existing dependencies, use `setup --scrcpy-server /absolute/server --mobile-mcp /absolute/node_modules/@mobilenext/mobile-mcp/lib/index.js`. `--adb`, `--node` and `--operation-lock` support existing host tools and cooperative locks. `--state /private/path` selects an isolated installation and must precede the command. Existing configurations made from `config.example.json` remain supported.
 
-Open **Phone Harness** from Applications and click **连接手机**. `doctor` checks host dependencies and USB authorization without navigating the phone; it does not prove real UI compatibility. A temporary independent installation was exercised on the tested Mac; that is not another person's device acceptance.
+Open **Mopu** from Applications and click **连接手机**. `doctor` checks host dependencies and USB authorization without navigating the phone; it does not prove real UI compatibility. A temporary independent installation was exercised on the tested Mac; that is not another person's device acceptance.
 
 The server binds only loopback; remote desktop to the host is the intended remote viewing path. Do not expose this port to a LAN or public tunnel. Endpoint tokens are local process credentials, not multi-user authentication. Neither interface starts a phone session automatically.
 
@@ -60,8 +66,8 @@ Configure a standard stdio MCP server in the assistant you already use. For a cl
 ```json
 {
   "mcpServers": {
-    "phone_harness": {
-      "command": "/absolute/path/to/.venv/bin/phone-harness",
+    "mopu": {
+      "command": "/absolute/path/to/.venv/bin/mopu",
       "args": ["mcp", "--agent", "claude-work", "--name", "Claude Code"]
     }
   }
@@ -71,14 +77,14 @@ Configure a standard stdio MCP server in the assistant you already use. For a cl
 For a client with TOML MCP settings:
 
 ```toml
-[mcp_servers.phone_harness]
-command = "/absolute/path/to/.venv/bin/phone-harness"
+[mcp_servers.mopu]
+command = "/absolute/path/to/.venv/bin/mopu"
 args = ["mcp", "--agent", "codex-work", "--name", "Codex"]
 ```
 
 Another persistent MCP host can use the same command with its own stable `--agent` identity. For Jarvis/OpenClaw, use the per-conversation adapter below rather than giving every conversation the same MCP identity. Use a **different identity for each simultaneously active client**, even if both are Codex. Do not configure two live clients with the same identity: reconnecting that identity invalidates its earlier lease. Identity labels are coordination identifiers, not a security boundary against malicious programs on the same user account.
 
-Install or give the assistant `skills/phone-harness/SKILL.md`. Its loop is:
+Install or give the assistant `skills/mopu/SKILL.md`. Its loop is:
 
 1. `phone_status` registers this client and reads ownership.
 2. `phone_submit` adds the authorized phone subtask.
@@ -107,7 +113,7 @@ When OpenClaw is stopped, the Mac sleeps, or the model is unavailable, the queue
 
 ## State and recovery
 
-Private state defaults to `~/.local/share/phone-harness`; `--state /other/path` can isolate an installation. `queue.json` stores task text, checkpoints, results and recent events. A restart preserves them and starts paused. A two-minute lease expires when the assistant stops making calls. Tasks have a 200-tool-call budget; a blocked task can be requeued after review.
+New installs use `~/.local/share/mopu`; existing `~/.local/share/phone-harness` is automatically reused without copying or rewriting private data; `--state /other/path` can isolate an installation. `queue.json` stores task text, checkpoints, results and recent events. A restart preserves them and starts paused. A two-minute lease expires when the assistant stops making calls. Tasks have a 200-tool-call budget; a blocked task can be requeued after review.
 
 `operation_lock` coordinates with an existing phone gateway. Every cooperating tool and manual mirror must use the same lock. The console holds it for the entire live session, including manual control. Raw ADB programs outside this protocol are not sandboxed by this project.
 
@@ -119,8 +125,8 @@ Phone observation guards expire after 120 seconds and after every input. This pi
 
 ```sh
 PYTHONPATH=src python3 -m unittest discover -s tests -v
-node --check src/phone_harness/web/app.js
-node --check src/phone_harness/web/actions.js
+node --check src/mopu/web/app.js
+node --check src/mopu/web/actions.js
 node --test tests/actions.test.cjs
 node --test integrations/openclaw/bridge.test.mjs
 python3 -m pip wheel --no-deps . -w dist
@@ -145,3 +151,27 @@ The phone stays centered in the whole window. The task drawer starts collapsed a
 A small status icon opens source-labelled, merged action records. Personal notifications use a private executable hook, a 10-second merge window, persistent event IDs and a 5-minute cooldown. Physical calibration is required before external-input alerts can be enabled. See [coverage, configuration and current validation limits](docs/ACTIVITY.md).
 
 The 0.8.1 local preview adds an **App visits** tab: app name/package, first/last observation, approximate foreground time and input counts during the visit. It stores no page content. Locking, missing reads or disconnecting stops the timer; foreground time does not prove active use or identify a person.
+
+## 0.10.0: single-step readback
+
+`phone_step` validates a fresh screen observation and lease, checkpoints, dispatches exactly one input, then returns fresh text or a screenshot. Optional `expected_text` is a literal diagnostic, not semantic completion. No automatic input replay. Text now uses the existing console scrcpy clipboard/paste channel; submit remains separate.
+
+Physical G100 acceptance: calculator result 460, persisted Moto note, and Chrome example.com → IANA navigation/read. Amap route task stopped at first-run terms and was not completed. New Chinese title paste and reopen passed. 121 Python and 18 JavaScript checks passed. Custom views still need screenshots; the queue does not launch a model. OpenClaw files updated, live gateway reload not verified.
+
+## 0.11.0: cross-app stage receipts
+
+Declare `required_milestones` when submitting a workflow. `phone_milestone` seals fresh passed evidence before leaving an app, using immutable stage keys. Historic stages survive takeover/reclaim but do not replace fresh final verification. Missing declared stages prevent verified completion. Retrying preserves old attempts and resets the current stage set. The console displays stage receipts. `phone_step` supports up to three read attempts with an expected text condition; only reads repeat, never input.
+
+Three physical G100 workflows completed: amend an existing budget via calculator (529); archive an official browser source in a Chinese note and reopen; read storage, calculate 217 GB, survive takeover/reclaim, save and reopen. The latter two used 0.11 contracts. 130 Python and 18 JavaScript tests passed. OpenClaw files updated, active gateway reload unverified. This is bounded acceptance, not an all-app reliability rate.
+
+## Fresh target clicks (0.12)
+
+`phone_step` accepts optional `target: {id, text, label, type}` for a single click, instead of coordinate arguments. Use exact values from a fresh observation. Under the same exclusive lease/operation lock the broker rereads accessibility, requires one enabled target with valid bounds, then clicks once and reads back. A missing/ambiguous/unavailable target returns `action_dispatched: false` and the fresh screen. This prevents a vanished toast or newly covering dialog from turning into a blind click. It does not establish task success, handle canvas-only targets, or eliminate the small interval between preflight and dispatch.
+
+Local shopping acceptance: three comparison-to-calendar runs and three official-PDF-to-file-manager runs. Existing outputs were reused; one calendar event and one manual remained. See VALIDATION.md for evidence and limits.
+
+## 0.13.0 shopping acceptance (2026-10-18)
+
+`phone_step` adds bounded `settle_ms=400..5000` before the first readback (default400) for observed lazy-loaded screens. It never repeats input; takeover is rechecked before reading. Waiting is not a readiness assertion. Shopping skill guidance now separates SKU, promotion eligibility/stacking, display currency and unknown delivery fees.
+
+Physical G100: three repeated Xiaohongshu F63 white/quantity1 checks sealed SKU, coupon and shipping stages; all agreed on CNY399−71=328 (approximately AUD71.33), black sold out. Cross-border freight remains unknown, so all three final receipts are unverified. No coupon claim, cart addition, checkout, order or payment. Twelve 3000ms screenshot readbacks (two SKU, ten detail swipes) were inspected; cache/network were uncontrolled, not a general reliability rate. 142 Python and18 JavaScript tests passed;22 installed runtime files match source. Local0.13 only; public release unchanged; OpenClaw files copied without gateway restart.

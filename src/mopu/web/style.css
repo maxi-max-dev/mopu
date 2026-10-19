@@ -1,4 +1,4 @@
-/* Phone Harness · Centered workspace. Original UI; no third-party component source. */
+/* Mopu · Centered workspace. Original UI; no third-party component source. */
 :root {
  color-scheme:light;
  --canvas:#f4f5f4; --chrome:#fff; --panel:#f8f9f8;
@@ -179,3 +179,8 @@ body.focus .tasks,body.focus .statusbar,body.focus .drawer-scrim{display:none}
 .input-activity-head{display:flex;justify-content:space-between;gap:16px}.input-activity-head strong{font-weight:550}
 .input-activity-head time,.input-activity-row small{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
 .input-activity-row p{margin:7px 0;color:var(--ink);font-size:12px}.activity-empty{padding:24px 4px;color:var(--muted);line-height:1.7}
+
+/* Task receipts and capabilities stay inside dialogs, preserving the centered phone. */
+.capability-row,.receipt-check{padding:14px 0;border-bottom:1px solid var(--line,#e4e6e8);overflow-wrap:anywhere}
+.capability-state{float:right;font-size:12px;color:#687480}.capability-row p,.receipt-check p{margin:7px 0}.capability-row code{font-size:11px;color:#687480}.receipt-unresolved{color:#8a580f}.task.unverified .task-status{color:#8a580f}#capabilitiesDetail{width:min(650px,90vw)}#detailContent pre{white-space:pre-wrap;overflow-wrap:anywhere}
+@media(max-width:950px){#capabilitiesOpen{font-size:11px;padding:6px}}

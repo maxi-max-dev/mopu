@@ -1,5 +1,5 @@
 import unittest
-from phone_harness.health import audio_status, camera_status, torch_status, microphone_status, projection_status, battery_status
+from mopu.health import audio_status, camera_status, torch_status, microphone_status, projection_status, battery_status
 
 class HealthParserTests(unittest.TestCase):
     TORCH='    FlashlightController state:\n      mCameraId=0\n      mFlashlightEnabled=%s\n      mTorchAvailable=%s\n\n    Dump took 2ms\n'
@@ -58,8 +58,8 @@ import asyncio
 import tempfile
 import time
 from unittest.mock import AsyncMock
-from phone_harness.device import Device
-from phone_harness.app import Console
+from mopu.device import Device
+from mopu.app import Console
 CONFIG={'serial':'test','adb':'/test/adb','backend_command':[]}
 
 class HealthLifecycleTests(unittest.IsolatedAsyncioTestCase):
@@ -99,7 +99,7 @@ class HealthLifecycleTests(unittest.IsolatedAsyncioTestCase):
 class QuietCallTests(unittest.IsolatedAsyncioTestCase):
     async def test_muting_uses_audio_shell_and_verifies_without_replay(self):
         from unittest.mock import patch
-        from phone_harness.health import STREAMS
+        from mopu.health import STREAMS
         def dump(muted):
             result=''
             for name in STREAMS:

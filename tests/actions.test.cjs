@@ -5,7 +5,7 @@ function setup(){
  let clock=1000;
  const arcs=[],ctx=new Proxy({arc:(...a)=>arcs.push(a)},{get:(o,k)=>o[k]??(()=>{})});
  const sandbox={window:{},Date,performance:{now:()=>clock},matchMedia:()=>({matches:false}),devicePixelRatio:2,requestAnimationFrame:()=>1,cancelAnimationFrame:()=>{}};
- vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../src/phone_harness/web/actions.js'),'utf8'),sandbox);
+ vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../src/mopu/web/actions.js'),'utf8'),sandbox);
  const layer={width:0,height:0,getContext:()=>ctx,getBoundingClientRect:()=>({left:0,top:0,width:1000,height:900})};
  const screen={hidden:false,width:720,height:1600,getBoundingClientRect:()=>({left:100,top:10,width:360,height:800})};
  const caption={hidden:true,style:{}};const overlay=new sandbox.window.ActionOverlay(layer,screen,caption);

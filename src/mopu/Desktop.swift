@@ -10,9 +10,9 @@ final class PhoneApp: NSObject, NSApplicationDelegate, WKNavigationDelegate {
         let menu = NSMenu()
         let appItem = NSMenuItem(); menu.addItem(appItem)
         let appMenu = NSMenu(); appItem.submenu = appMenu
-        appMenu.addItem(withTitle: "关于 Phone Harness", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
+        appMenu.addItem(withTitle: "关于 Mopu", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
         appMenu.addItem(.separator())
-        appMenu.addItem(withTitle: "退出 Phone Harness", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        appMenu.addItem(withTitle: "退出 Mopu", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         let editItem = NSMenuItem(); menu.addItem(editItem)
         let edit = NSMenu(title:"编辑"); editItem.submenu = edit
         for (title, selector, key) in [("剪切","cut:","x"),("复制","copy:","c"),("粘贴","paste:","v"),("全选","selectAll:","a")] {
@@ -24,7 +24,7 @@ final class PhoneApp: NSObject, NSApplicationDelegate, WKNavigationDelegate {
         reload.target = self
         NSApp.mainMenu = menu
         window = NSWindow(contentRect:NSRect(x:0,y:0,width:1280,height:850),styleMask:[.titled,.closable,.miniaturizable,.resizable],backing:.buffered,defer:false)
-        window.title = "Phone Harness"
+        window.title = "Mopu"
         window.minSize = NSSize(width:850,height:640)
         window.setFrameAutosaveName("PhoneHarnessWindow")
         window.appearance = NSAppearance(named:.aqua)
@@ -34,7 +34,7 @@ final class PhoneApp: NSObject, NSApplicationDelegate, WKNavigationDelegate {
         web.autoresizingMask = [.width,.height]; web.navigationDelegate = self
         window.contentView = web
         window.center(); window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps:true)
-        web.loadHTMLString("<body style='background:#f8f9f7;color:#72776f;font:18px -apple-system;padding:60px'>正在启动 Phone Harness…</body>",baseURL:nil)
+        web.loadHTMLString("<body style='background:#f8f9f7;color:#72776f;font:18px -apple-system;padding:60px'>正在启动 Mopu…</body>",baseURL:nil)
         DispatchQueue.global(qos:.userInitiated).async { self.startConsole() }
     }
     @objc func reloadConsole(_ sender:Any?) {
@@ -45,7 +45,7 @@ final class PhoneApp: NSObject, NSApplicationDelegate, WKNavigationDelegate {
             let file = Bundle.main.url(forResource:"launch",withExtension:"json")!
             let settings = try JSONSerialization.jsonObject(with:Data(contentsOf:file)) as! [String:String]
             let proc = Process(); proc.executableURL = URL(fileURLWithPath:settings["python"]!)
-            proc.arguments = ["-m","phone_harness.cli","--state",settings["state"]!,"url"]
+            proc.arguments = ["-m","mopu.cli","--state",settings["state"]!,"url"]
             let pipe = Pipe(); proc.standardOutput = pipe; proc.standardError = pipe
             try proc.run(); let data=pipe.fileHandleForReading.readDataToEndOfFile(); proc.waitUntilExit()
             let result=String(data:data,encoding:.utf8)?.trimmingCharacters(in:.whitespacesAndNewlines) ?? ""

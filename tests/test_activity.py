@@ -1,9 +1,9 @@
 import asyncio,json,tempfile,unittest
 from pathlib import Path
 from unittest.mock import AsyncMock
-from phone_harness.activity import ActivityLog
-from phone_harness.input_activity import GestureParser,input_nodes,probe_inputs
-from phone_harness.app import Console
+from mopu.activity import ActivityLog
+from mopu.input_activity import GestureParser,input_nodes,probe_inputs
+from mopu.app import Console
 CONFIG={'serial':'test-device','adb':'/test/adb','scrcpy_server':'/test/server','backend_command':['/test/node']}
 
 CAP='''add device 1: /dev/input/event8
