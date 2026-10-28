@@ -18,15 +18,21 @@ REASON_TEXT = {
     'external_service': ('等待外部服务', '核实服务结果后继续，勿重复提交'),
     'verification': ('结果待核验', '原助手读取新鲜状态并补充完成回执'),
     'running': ('正在执行', '可随时接管手机'),
+    'needs_review': ('需要人工阶段检查', '接管后检查进度、未确认动作及有限下一阶段，再批准续接'),
     'blocked': ('需要处理', '查看阻塞原因，处理后重新排队'),
 }
 
 
 def explanation(task, owner, connected, head_id, online, locked=False):
+    if task.get('deleted_at'):
+        return {'code':'trash', 'label':'已删除', 'next_action':'可在回收站恢复；恢复不会自动执行'}
+    if task.get('user_held'):
+        return {'code':'held', 'label':'你已暂停', 'next_action':'点「继续排队」取消单独暂停；需检查的任务仍先检查'}
     status = task['status']
     if status in ('done', 'cancelled'):
         return None
-    if status == 'unverified': code = 'verification'
+    if task.get('stop_reason') == 'needs_review': code = 'needs_review'
+    elif status == 'unverified': code = 'verification'
     elif status == 'blocked': code = task.get('wait_reason') or 'blocked'
     elif not connected: code = 'device_offline'
     elif owner == 'transition': code = 'handoff'
@@ -38,6 +44,11 @@ def explanation(task, owner, connected, head_id, online, locked=False):
     elif status == 'running': code = 'running'
     else: code = 'ready'
     label, action = REASON_TEXT[code]
+    stage = (task.get('reviews') or [None])[-1]
+    if code == 'needs_review' and stage and stage.get('kind') == 'whole_task':
+        label, action = '任务授权已停止', '回原助手核对最后动作，再按当前授权续接同一任务'
+    if code == 'human_control' and not online:
+        label, action = '原助手离线，手机由你控制', '回原对话继续；控制台不会启动模型'
     if code in WAIT_REASONS and task.get('action'):
         action = task['action']
     # Lock telemetry is a hint, not proof the agent cannot swipe to unlock.

@@ -8,13 +8,15 @@ A local Android control console shared by humans and their AI assistants.
 
 **The assistant you give the task to remains its executor.** Codex, Claude Code, Jarvis or another MCP client can use the same phone. This project supplies a screen, tools, task queue and ownership protocol. Model execution stays in the original assistant host; the optional OpenClaw adapter can resume that host's original conversation after human control is returned.
 
-Version 0.14.0 is a **local MIT-licensed preview** (the public release remains 0.6.0) of a local, single-phone prototype. The current implementation uses Unix file locks and is intended for macOS/Linux; Windows is not supported yet. Real-device acceptance is limited to the device and capabilities listed in `VALIDATION.md`.
+Version 0.19.1 is an **MIT-licensed public preview** of a local, single-phone prototype. The current implementation uses Unix file locks and is intended for macOS/Linux; Windows is not supported yet. Real-device acceptance is limited to the device and capabilities listed in `VALIDATION.md`.
 
 ![Mopu light console — synthetic demonstration](docs/console-demo.png)
 
 *Illustrative UI preview. The phone screen and task data are synthetic; no real phone content is shown.*
 
 ## What it does
+
+- One authorization covers a bounded whole task through standard MCP or a persistent shell CLI. Unknown delivery outcomes block further input; manual takeover always revokes the grant. See [0.19.1 validation](docs/VALIDATION-0.19.1.md).
 
 - Structured completion receipts link each acceptance check to a fresh broker-issued phone observation. Text-only completion is retained as **unverified**; old history is preserved and labeled as lacking structured receipts. The assistant judges meaning; the broker validates task, lease, age and input ordering, not semantic truth.
 - Waiting explanations distinguish ownership, disconnected phone, queue, stopped assistant, explicit user/service wait and pending verification. Explicit waits suppress automatic re-claim until handback/retry.
@@ -86,11 +88,13 @@ Another persistent MCP host can use the same command with its own stable `--agen
 
 Install or give the assistant `skills/mopu/SKILL.md`. Its loop is:
 
-1. `phone_status` registers this client and reads ownership.
-2. `phone_submit` adds the authorized phone subtask.
-3. After the user selects **交回助手**, `phone_wait` acquires its next task.
-4. `phone_tools` returns the actual device tool schemas. Observe the current screen, save a checkpoint, act once, observe again.
-5. `phone_finish` records a verified result or blocker and releases the phone.
+1. `phone_session` reads this client's current task and ownership.
+2. `phone_start` records the user's whole-task authorization and finite call/delivery budget, selecting an idle phone atomically.
+3. `phone_wait` acquires or recovers the lease; `phone_tools` returns current device schemas.
+4. Observe, use `phone_step` for input, and confirm outgoing deliveries with fresh evidence. `phone_heartbeat` renews the lease for free.
+5. `phone_finish` records the result and returns human ownership.
+
+See the [AI client quickstart](docs/AI_CLIENTS.md) for MCP and persistent CLI examples and the [whole-task contract](docs/LONG_TASKS.md). Existing paused tasks are never resumed or upgraded automatically.
 
 If the user takes over, the old lease stops working. The assistant waits and reacquires; it must not open a different ADB path to bypass the pause. An offline head-of-queue owner blocks that task; the console never assigns it to another model. The user can prioritize a different task explicitly.
 
@@ -105,7 +109,7 @@ python3 integrations/openclaw/install.py --agent main --name Jarvis
 openclaw config validate
 ```
 
-The installer backs up the existing configuration/plugin, adds only the seven phone tools, and preserves model selection and unrelated permissions. It targets an existing agent. If OpenClaw does not hot-reload the plugin, restart its gateway when idle. Tested on OpenClaw 2026.7.1-2. Older hosts without the runtime APIs are not established compatible.
+The installer backs up the existing configuration/plugin, adds the phone tools, and preserves model selection and unrelated permissions. It targets an existing agent. If OpenClaw does not hot-reload the plugin, restart its gateway when idle. Tested on OpenClaw 2026.7.1-2. Older hosts without the runtime APIs are not established compatible.
 
 The adapter also continues an already-queued phone task in its **original conversation** after the user gives control back, even when that conversation's previous turn has ended. It uses OpenClaw's normal agent runtime, never a new model or different assistant. It checks queue metadata, not phone screens; it starts nothing while the human owns the device, while an agent turn/lease is active, after a conversation reset, or without an existing task. Continuations have no host message tool or external delivery, and are bounded to three wake attempts per task until the user takes control again. An explicit new handoff resets that allowance. It does not create a cron or maintenance automation. The setting `plugins.entries.phone-harness.config.resumeOnRelease` disables/enables this behavior.
 
@@ -113,7 +117,7 @@ When OpenClaw is stopped, the Mac sleeps, or the model is unavailable, the queue
 
 ## State and recovery
 
-New installs use `~/.local/share/mopu`; existing `~/.local/share/phone-harness` is automatically reused without copying or rewriting private data; `--state /other/path` can isolate an installation. `queue.json` stores task text, checkpoints, results and recent events. A restart preserves them and starts paused. A two-minute lease expires when the assistant stops making calls. Tasks have a 200-tool-call budget; a blocked task can be requeued after review.
+New installs use `~/.local/share/mopu`; existing `~/.local/share/phone-harness` is automatically reused without copying or rewriting private data; `--state /other/path` can isolate an installation. `queue.json` stores task text, checkpoints, results and recent events. A restart preserves them and starts paused. A two-minute lease expires when the assistant stops making calls. New whole-task grants use the explicitly authorized total budget. Legacy tasks retain the 200-call stop and finite-stage review; generic requeue cannot reset that protection.
 
 `operation_lock` coordinates with an existing phone gateway. Every cooperating tool and manual mirror must use the same lock. The console holds it for the entire live session, including manual control. Raw ADB programs outside this protocol are not sandboxed by this project.
 

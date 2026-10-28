@@ -2,7 +2,7 @@
 :root {
  color-scheme:light;
  --canvas:#f4f5f4; --chrome:#fff; --panel:#f8f9f8;
- --line:#e3e6e2; --ink:#252825; --muted:#747974;
+ --line:#e3e6e2; --ink:#252825; --muted:#626862;
  --accent:#385c79; --primary:#282d28; --amber:#936218; --green:#31735a;
  --hover:#e9ece6; --radius:10px;
  font:13px -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
@@ -93,7 +93,7 @@ h1{font-size:16px;margin:0;font-weight:600;letter-spacing:-.3px}
 .toolbar{position:absolute;z-index:2;left:calc(50% + 180px);top:calc(8px + var(--activity-inset,0px));bottom:8px;width:64px;display:flex;flex-direction:column;align-items:stretch;padding:0;gap:4px;overflow-y:auto;scrollbar-width:none}
 .toolbar button{min-height:46px;flex-shrink:0;padding:4px 0;color:#50594a;border-radius:8px}
 .toolbar button>span{display:flex;height:24px;align-items:center;justify-content:center}
-.toolbar small{display:block;font-size:10px;line-height:16px;color:#727b6b}
+.toolbar small{display:block;font-size:10px;line-height:16px;color:#596250}
 .toolbar button:disabled small{color:inherit}
 .toolbar button:not(.panel-power):hover:not(:disabled),.toolbar #focus[aria-pressed=true]{background:#fff;color:var(--ink);border-color:#dfe4da}
 .toolbar .divider{height:1px;background:#dce1d7;margin:4px 17px;flex:none}
@@ -107,7 +107,7 @@ h1{font-size:16px;margin:0;font-weight:600;letter-spacing:-.3px}
 .toolbar .panel-power.on .panel-glyph{background:#f9e1aa}
 .toolbar .panel-power.off{color:var(--green);border-color:#d4e5d8;background:#f0f7f0}
 .toolbar .panel-power.pending{border-style:dashed}
-.statusbar{height:26px;flex:none;display:flex;align-items:center;gap:16px;padding:0 16px;background:var(--chrome);border-top:1px solid var(--line);font:10px -apple-system,sans-serif;color:#737b6d;white-space:nowrap}
+.statusbar{height:26px;flex:none;display:flex;align-items:center;gap:16px;padding:0 16px;background:var(--chrome);border-top:1px solid var(--line);font:10px -apple-system,sans-serif;color:#596250;white-space:nowrap}
 .statusbar>span{display:flex;align-items:center;gap:6px}
 .statusbar i{height:4px;width:4px;border-radius:50%;background:#93998c}
 .statusbar i.online{background:var(--green)}
@@ -184,3 +184,55 @@ body.focus .tasks,body.focus .statusbar,body.focus .drawer-scrim{display:none}
 .capability-row,.receipt-check{padding:14px 0;border-bottom:1px solid var(--line,#e4e6e8);overflow-wrap:anywhere}
 .capability-state{float:right;font-size:12px;color:#687480}.capability-row p,.receipt-check p{margin:7px 0}.capability-row code{font-size:11px;color:#687480}.receipt-unresolved{color:#8a580f}.task.unverified .task-status{color:#8a580f}#capabilitiesDetail{width:min(650px,90vw)}#detailContent pre{white-space:pre-wrap;overflow-wrap:anywhere}
 @media(max-width:950px){#capabilitiesOpen{font-size:11px;padding:6px}}
+
+/* Queue usability: visible actions and compact evidence. */
+.task-controls button{font-size:12px;padding:7px 9px;min-height:32px;border:1px solid #dce3d6;background:#f8faf5}
+.task-controls button:disabled{opacity:.45;cursor:default}
+.queue-group{font-size:12px;color:#68745e;margin:18px 0 8px}
+#taskDetail{width:min(720px,94vw)}
+#taskDetail .dialog-head{position:sticky;top:-26px;background:var(--chrome);padding:10px 0;z-index:2}
+.detail-actions{position:sticky;top:40px;background:var(--chrome);padding:10px 0;z-index:1}
+.task-ledger{border:1px solid #dde2d7;border-radius:8px;padding:12px;margin:12px 0}
+.task-ledger>summary{cursor:pointer;font-size:13px;font-weight:600}
+#editTask{width:min(660px,94vw)}#editInstruction{min-height:240px}#editError{color:#a43c30}
+
+/* Task management: reversible actions and a stable place for each state. */
+.tasks{width:min(420px,94vw)}
+.task-search{display:flex;gap:6px;margin:2px 18px 10px}.task-search input{width:100%;margin:0;min-width:0}
+.task-selection{display:flex;gap:10px;align-items:center;margin:0 18px 10px;font-size:11px;color:var(--muted)}
+.task-selection label{display:flex;align-items:center;gap:6px;margin:0;font-size:11px;white-space:nowrap}
+.task-selection input,.task-select{width:16px;height:16px;margin:0;accent-color:var(--accent);flex:none}
+.task-select{cursor:pointer}.task-selection button{font-size:11px;padding:4px}
+.batch-actions{display:flex;flex-wrap:wrap;gap:6px;margin:0 18px 10px;padding:8px;background:#edf2f6;border-radius:8px}.batch-actions[hidden]{display:none}
+.batch-actions button{font-size:12px;padding:6px 8px}.task-controls button.danger,button.danger{color:#a33737}
+.task-controls{gap:6px}.task-controls button{min-height:34px;font-size:12px}.task{border-color:var(--line);margin-bottom:8px;background:var(--chrome)}
+.dialog-buttons{display:flex;gap:10px;justify-content:flex-end}#deleteNames{max-height:220px;overflow:auto;padding-left:20px}#deleteCaution{color:var(--amber)}
+#deleteError,#orderError{color:#a33737}#orderPosition{width:100%;padding:10px}
+
+/* Operate refinement: readable task controls, one primary action, honest evidence. */
+.task-agent,.task-status,.task-index,.task-action,.task-updated,.task-progress,.task-controls summary{font-size:12px}
+.task-controls button{font-size:13px;padding:6px 8px;min-height:32px;color:#46503f}
+.task-controls .task-main{background:#e8ede5;color:#252825;font-weight:550}
+.task-more{flex:1;min-width:60px;align-self:start}
+.task-more summary{cursor:pointer;padding:8px 5px;border-radius:5px;color:#46503f}
+.task-more[open]{flex-basis:100%}
+.task-more[open] button{display:block;text-align:left;width:100%;margin:3px 0}
+.task-more summary:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.task-progress{margin:8px 0 0;line-height:1.6;color:#46503f;font-variant-numeric:tabular-nums}
+.task-updated{margin:4px 0 0;line-height:1.5;color:var(--muted)}
+.delivery-summary{font-size:14px;line-height:1.7;font-weight:550}
+.owner-info span:not(.owner-dot){display:block;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px}
+.owner-info strong{font-size:13px}
+.owner-actions button,.toolbar small,.toolbar .panel-power small,.text-button,.queue-hint{font-size:12px}
+#integration pre{white-space:pre-wrap;overflow-wrap:anywhere}
+#integration code{overflow-wrap:anywhere}
+.task-top{flex-wrap:wrap;row-gap:3px}
+::selection{background:#dbe7ef;color:#252825}
+input,textarea{caret-color:var(--accent)}
+@media(max-width:850px){.owner-info{max-width:230px}.owner-actions{gap:3px}.owner-actions button{padding:5px 7px}#capabilitiesOpen{display:none}.owner-info span:not(.owner-dot){max-width:220px}}
+@media(max-width:600px){.owner-info span:not(.owner-dot){max-width:120px}.owner-info strong{font-size:12px}.owner-actions button{font-size:12px}.toolbar small,.toolbar .panel-power small{font-size:11px}.statusbar{font-size:11px}#connection{display:none}}
+
+.statusbar,.setting-value,.task-selection,.task-selection label,.task-selection button,.task-id,.health-row,.input-activity-row small,.input-activity-head time{font-size:12px}
+.header-icon b{font-size:11px;min-width:16px;line-height:13px}
+
+@media(max-height:650px){.pane-head{padding-top:10px}.queue-hint{padding-bottom:6px}.task-tabs button{padding-top:5px;padding-bottom:5px}.agent-foot{padding-top:7px;padding-bottom:6px}.task{padding-top:10px;padding-bottom:10px}.task-search{margin-bottom:7px}.task-search input{padding:8px}.task-selection{margin-bottom:6px}}

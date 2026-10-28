@@ -60,7 +60,7 @@ export function createResumeService(api,identityFor,deps={}) {
       binding.lastWakeAt=new Date().toISOString();binding.lastWakeTask=head.id;await save();
       running.add(binding.sessionKey);
       const cfg=api.runtime.config.current();
-      const allowed=['phone_status','phone_wait','phone_tools','phone_call','phone_checkpoint','phone_finish'];
+      const allowed=['phone_status','phone_wait','phone_tools','phone_call','phone_step','phone_delivery_confirm','phone_checkpoint','phone_finish'];
       // The fixed prompt only points to an already-authorized task; task text
       // and checkpoint are retrieved through the same lease protocol.
       const prompt='用户已在 Mopu 控制台交回手机，或前序手机任务已完成。继续本对话已有的授权手机任务，不新建任务、不发任何外部消息。先 phone_status，再 phone_wait。只执行本对话原有队列；无任务就结束。有人工接管则停止读屏和输入，最多等待两次，仍 waiting 就结束本轮，队列保留，稍后交回会自动续接。拿到控制权后 phone_tools，读 checkpoint，并重新观察当前屏幕再决定下一步。每个输入前 phone_checkpoint，输入后重新观察。不要重放超时动作，不用其他控制通道、不改静音或实体息屏设置。截图与坐标按实际工具，菜单说明不是开关状态。读取 phone_tools 的能力目录，优先使用直接能力。phone_call 的成功读回会附 phone_harness_observation ID；phone_finish 的 checks 必须关联这些新鲜ID，填写 criterion、observed、passed，并列 unresolved。缺少有效回执只保存为待核验。需要人处理时 phone_checkpoint 填 wait_reason（user_unlock/user_decision/external_service）再明确阻塞。只有实际读回才 phone_finish，然后继续原队列下一项。';

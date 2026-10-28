@@ -111,7 +111,7 @@ class WaitingAndSchemaTests(unittest.TestCase):
             value=explanation(t,owner,connected,head,online);self.assertEqual(value['code'],expected);self.assertTrue(value['next_action'])
     def test_catalog_matches_execution_allowlist_and_distinguishes_routes(self):
         items={x['name']:x for x in catalog(True,'human',set(ALLOWED))['items']}
-        self.assertEqual(set(items),ALLOWED);self.assertEqual(items['mobile_launch_app']['route'],'direct')
+        self.assertEqual(set(items),ALLOWED | __import__('mopu.transfers',fromlist=['NAMES']).NAMES);self.assertEqual(items['mobile_launch_app']['route'],'direct')
         self.assertEqual(items['mobile_swipe_on_screen']['route'],'ui');self.assertFalse(any(x['ready_for_lease'] for x in items.values()))
     def test_openclaw_and_stdio_schemas_stay_identical(self):
         source=Path(__file__).resolve().parents[1]/'integrations/openclaw/tools.json'
