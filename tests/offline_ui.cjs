@@ -22,7 +22,7 @@ const fs=require('node:fs'),path=require('node:path'),assert=require('node:asser
   await route.fulfill({body:fs.readFileSync(path.join(root,f)),contentType:f.endsWith('.js')?'text/javascript':f.endsWith('.css')?'text/css':'text/html'});
  });
  await page.goto('http://mopu.test/');await page.getByRole('button',{name:'展开任务队列',exact:true}).click();
- await page.locator('.task').first().click();await page.locator('#detailContent .task-more:not([open]) > summary').click();await page.locator('#detailContent').getByRole('button',{name:'检查并续接',exact:true}).click();
+ await page.locator('.task').first().click();if(await page.locator('#detailContent .task-more:not([open])').count())await page.locator('#detailContent .task-more > summary').click();await page.locator('#detailContent').getByRole('button',{name:'检查并续接',exact:true}).click();
  const modal=page.locator('dialog').filter({has:page.getByRole('heading',{name:'人工阶段检查',exact:true})});
  await modal.getByLabel('检查结论（已确认进度、最后动作及不确定项）').fill('合成验收：已检查既有记录和未确认动作，不读取真实手机。');
  await modal.getByLabel('仅本阶段的范围与停止条件').fill('仅离线合成3项目；遇不确定结果即停止新增。');
@@ -34,7 +34,7 @@ const fs=require('node:fs'),path=require('node:path'),assert=require('node:asser
  await modal.getByText(/任务或证据已变化/).waitFor();assert.equal(submits.length,1);
  await page.screenshot({path:path.join(process.env.MOPU_UI_OUTPUT,'人工阶段检查-离线合成.png'),fullPage:true});
  await modal.getByRole('button',{name:'取消',exact:true}).click();
- await page.locator('#detailContent .task-more:not([open]) > summary').click();await page.locator('#detailContent').getByRole('button',{name:'检查并续接',exact:true}).click();
+ if(await page.locator('#detailContent .task-more:not([open])').count())await page.locator('#detailContent .task-more > summary').click();await page.locator('#detailContent').getByRole('button',{name:'检查并续接',exact:true}).click();
  const m=page.locator('dialog').filter({has:page.getByRole('heading',{name:'人工阶段检查',exact:true})});
  await m.getByLabel('检查结论（已确认进度、最后动作及不确定项）').fill('重新检查通过');await m.getByLabel('仅本阶段的范围与停止条件').fill('离线合成3项');
  await m.getByLabel('本阶段调用上限（2–200）').fill('20');await m.getByLabel('本阶段发送项上限（0–20，0禁止发送）').fill('3');
