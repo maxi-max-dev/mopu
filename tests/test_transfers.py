@@ -1,3 +1,4 @@
+import sys
 import asyncio
 import hashlib
 import os
@@ -17,7 +18,8 @@ class LocalTransport(Transfers):
         guard()
         command = command.replace('/storage/emulated/0/Download', str(self.phone))
         # Linux stat spelling is not available on macOS.
-        command = command.replace('stat -c %s', 'stat -f %z').replace('stat -c %i', 'stat -f %i').replace('sha256sum ', 'shasum -a 256 ')
+        if sys.platform == 'darwin':
+            command = command.replace('stat -c %s', 'stat -f %z').replace('stat -c %i', 'stat -f %i').replace('sha256sum ', 'shasum -a 256 ')
         proc = await asyncio.create_subprocess_exec('/bin/sh','-c',command,stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,stderr=asyncio.subprocess.PIPE)
         out,err = await proc.communicate(data)
@@ -28,7 +30,7 @@ class LocalTransport(Transfers):
 
 class TransferTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
-        self.tmp=tempfile.TemporaryDirectory(); self.root=Path(self.tmp.name).resolve()
+        self.tmp=tempfile.TemporaryDirectory(); self.root=Path(self.tmp.name).resolve()/'scoped-fixture'; self.root.mkdir()
         self.source=self.root/'source';self.source.mkdir()
         self.dest=self.root/'destination';self.dest.mkdir()
         self.phone=self.root/'phone';self.phone.mkdir()
