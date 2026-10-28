@@ -1,4 +1,6 @@
+from .transfers import Transfers, TransferJobs, TOOLS as FILE_TOOLS, NAMES as FILE_NAMES
 from .targets import validate_target, resolve_target
+from . import __version__
 import asyncio
 import contextlib
 import json
@@ -24,6 +26,8 @@ class Console:
         self.state_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
         self.queue = Queue(self.state_dir / 'queue.json')
         self.device = Device(config, self.state_dir)
+        self.transfers = Transfers(self.state_dir, self.device)
+        self.transfer_jobs = TransferJobs(self)
         self.device.on_disconnect = self.disconnected
         self.op = asyncio.Lock()
         self.transition = asyncio.Lock()
@@ -49,6 +53,7 @@ class Console:
         self.available_tools = None
         self.tools_checked_at = None
         self.activity.apps.end('offline')
+        self.queue.revoke_continuations('连接中断：检查未完成动作后重新审批')
         self.queue.invalidate('连接中断；先核实最后动作是否完成')
         self.queue.owner = 'paused'
         self.queue.event('连接中断，任务进度保留；不会重放输入')
@@ -62,18 +67,28 @@ class Console:
         if not self.device.connected or age is None or age > 5:
             telemetry['panel'] = 'unknown'
         queue = self.queue.snapshot()
+        for task in queue['tasks']:
+            task['continuation'] = self.queue.review_summary(self.queue.get(task['id']))
+            task['delivery_summary'] = self.queue.delivery_summary(self.queue.get(task['id']))
         head = self.queue.head()
         for task in queue['tasks']:
             online = time.monotonic()-self.agents.get(task['agent'], {}).get('seen', 0) < 90
             task['wait'] = explanation(task, queue['owner'], self.device.connected, head['id'] if head else None, online)
-        return {**queue, 'capabilities':catalog(self.device.connected, queue['owner'], self.available_tools, self.tools_checked_at), 'activity':self.activity.snapshot(self.device.connected), 'device': {'connected': self.device.connected,
+        return {**queue, 'server_version':__version__, 'file_transfer':{'protocol':1,'continuous':True,'chunk_bytes':4194304,'lease_required':True}, 'capabilities':catalog(self.device.connected, queue['owner'], self.available_tools, self.tools_checked_at), 'activity':self.activity.snapshot(self.device.connected), 'device': {'connected': self.device.connected,
             'error': self.device.error, 'telemetry': telemetry, 'health': self.device.health_snapshot(), 'width': self.device.width,
             'height': self.device.height, 'geometry_note':'width/height describe the video stream only. Agent coordinates use mobile_get_screen_size and fresh element bounds; these can be larger.', 'frame_age': round(time.monotonic()-self.device.last_packet, 1) if self.device.last_packet else None},
-            'agents': [{'id': k, 'name': a['name'], 'online': time.monotonic()-a['seen'] < 90} for k, a in self.agents.items()],
+            'agents': self.known_agents(),
             'error': self.error, 'recovery': {'attempts':self.retries, 'pending':self.retry_at is not None}}
+
+    def known_agents(self):
+        known = {t['agent']: {'id': t['agent'], 'name': t['agent_name'], 'online': False} for t in self.queue.data['tasks']}
+        known.update({k: {'id': k, 'name': a['name'], 'online': time.monotonic()-a['seen'] < 90} for k,a in self.agents.items()})
+        return list(known.values())
 
     async def transition_to(self, owner, reason):
         async with self.transition:
+            if owner != 'agent':
+                self.queue.revoke_continuations(reason)
             self.queue.invalidate(reason)
             self.queue.owner = 'transition'
             await self.device.clear_actions()
@@ -104,17 +119,158 @@ class Console:
             return task
         if action == 'status':
             return self.snapshot()
+        if action == 'session':
+            snap = self.snapshot()
+            own = [t for t in snap['tasks'] if t['agent'] == name and not t.get('deleted_at')]
+            return {'server_version':__version__, 'owner':q.owner, 'generation':q.generation,
+                'connected':self.device.connected, 'lease_active':bool(q.lease),
+                'tasks':[{'id':t['id'], 'title':t['title'], 'status':t['status'],
+                    'checkpoint':t.get('checkpoint'), 'continuation':t['continuation'],
+                    'delivery_summary':t['delivery_summary'],
+                    'updated_at':t.get('checkpoint_at') or t.get('finished_at') or t.get('created_at'),
+                    'wait':t['wait']} for t in own],
+                'head_id':q.head()['id'] if q.head() else None}
+        if action == 'start':
+            # Idempotent grant receipt; a repeated request never reclaims after takeover.
+            async with self.transition:
+                grant = payload.get('authorization_id')
+                for old in q.data['tasks']:
+                    stage = next((x for x in old.get('reviews', []) if x.get('authorization_id') == grant), None)
+                    if stage:
+                        if old['agent'] != name or stage.get('request') != {k:v for k,v in payload.items() if k not in ('agent','agent_token','lease','action')}:
+                            raise PermissionError('授权标识已用于不同请求')
+                        return {'task_id':old['id'], 'duplicate':True, 'status':old['status'],
+                            'continuation':q.review_summary(old), 'next_action':'读取phone_session；仅有效授权可phone_wait，不会自动重领已撤销控制'}
+                q.expire()
+                if q.lease or q.owner == 'transition':
+                    raise PermissionError('手机正在执行其他操作；等待空闲后再开始，不抢占当前任务')
+                task_id = payload.get('task_id')
+                if task_id:
+                    task = q.get(task_id)
+                    if task['agent'] != name: raise PermissionError('只能继续自己的原任务')
+                else:
+                    if any(t['agent']==name and t.get('pending_delivery') for t in q.data['tasks']):
+                        raise PermissionError('原任务有未确认发送；请用task_id续接原任务')
+                    # Validate all grant fields before persisting a task.
+                    scratch = {'id':'validation', 'instruction':payload.get('instruction',''), 'steps':0, 'status':'queued'}
+                    q.authorize_task(scratch, payload)
+                    task = q.get(q.add(payload.get('title',''),payload.get('instruction',''),name,agent['name'])['id'])
+                if any(t is not task and t['agent']==name and (q.needs_review(t) or t.get('pending_delivery')) for t in q.data['tasks']):
+                    raise PermissionError('先续接原任务并核对未确认结果，不能另建任务跳过')
+                stage = q.authorize_task(task, payload)
+                stage['request'] = {k:v for k,v in payload.items() if k not in ('agent','agent_token','lease','action')}
+                q.prioritize(task['id'])
+                q.owner = 'transition'
+                try:
+                    await self.device.clear_actions()
+                    async with self.op:
+                        if not self.device.connected: await self.device.connect()
+                        await self.device.release_touch()
+                        self.device.observed_at = 0
+                        q.owner = 'agent'
+                        self.wanted, self.retry_at = True, None
+                        q.event('整项任务授权：'+task['title'])
+                except Exception:
+                    q.stop_for_review(task, '连接失败；授权停止，保留进度，不重放')
+                    q.owner = 'paused'
+                    raise
+                return {'task_id':task['id'], 'continuation':q.review_summary(task),
+                    'next_action':'phone_wait领取租约，然后读屏；同一任务持续执行，无需每200调用换段'}
+        if action == 'request_control':
+            # A trusted client attests to a NEW direct human instruction. This is
+            # not inferred from task text or automatically retried after takeover.
+            ident = payload.get('task_id')
+            authorization = payload.get('user_authorization')
+            grant_id = payload.get('authorization_id')
+            generation = payload.get('expected_generation')
+            if not isinstance(authorization, str) or not authorization.strip() or len(authorization) > 1000:
+                raise ValueError('需要当前用户明确授权的原话，最多1000字')
+            if not isinstance(grant_id, str) or not 8 <= len(grant_id) <= 100:
+                raise ValueError('需要本次用户授权的唯一标识')
+            if type(generation) is not int:
+                raise ValueError('需要最近状态中的expected_generation')
+            async with self.transition:
+                task = q.get(ident)
+                if task.get('deleted_at') or task.get('user_held'):
+                    raise PermissionError('此任务已删除或被你暂停，请先在控制台恢复')
+                if any(t is not task and t['agent']==name and q.needs_review(t) for t in q.data['tasks']):
+                    raise PermissionError('同一助手已有待检查原任务，不能切换任务绕过')
+                if q.needs_review(task) or (task.get('long_task') and task['status'] in ('blocked','unverified')):
+                    raise PermissionError('needs_review：控制授权不能替代人工阶段审批')
+                grants = task.setdefault('control_authorizations', [])
+                switch = payload.get('queue_switch_authorization')
+                if switch is not None and (not isinstance(switch,str) or not switch.strip() or len(switch)>1000):
+                    raise ValueError('切换队列需要当前用户明确指令')
+                selecting = bool(switch) and task['status'] in ('queued','paused','blocked','unverified')
+                if selecting and payload.get('expected_head') != (q.head()['id'] if q.head() else None):
+                    raise PermissionError('队首已变化，不自动重试切换')
+                resume = task['status'] in ('blocked', 'unverified') and (q.head() is None or selecting)
+                if task['agent'] != name or (q.head() is not task and not resume and not selecting):
+                    raise PermissionError('只能为自己的队首任务申请控制，不能插队')
+                if any(g['id'] == grant_id for t in q.data['tasks'] for g in t.get('control_authorizations', [])):
+                    raise PermissionError('这次授权已经使用；人工接管后需要新的用户指令')
+                if generation != q.generation or q.owner == 'transition' or q.lease:
+                    raise PermissionError('控制状态已变化；重新观察状态，不得自动重试接管')
+                if len(grants) >= 100:
+                    raise ValueError('本任务授权记录已满')
+                # Persist consumption BEFORE connection or any awaited work.
+                grants.append({'id': grant_id, 'user_authorization': authorization.strip(),
+                               'at': now(), 'generation': generation, 'queue_switch_authorization': switch})
+                if resume:
+                    task.setdefault('attempts', []).append({k:task.get(k) for k in ('result','receipt','finished_at','steps','milestones')})
+                    task.update(status='queued', milestones=[], wait_reason='',
+                                action='当前用户授权原任务重新观察',
+                                prior_steps=task.get('prior_steps',0)+task['steps'], steps=0)
+                if selecting:
+                    q.prioritize(ident)  # Normal queue operation, old tasks/checkpoints retained.
+                q.invalidate('当前用户明确授权，申请交给原助手')
+                q.owner = 'transition'
+                try:
+                    await self.device.clear_actions()
+                    async with self.op:
+                        if not self.device.connected:
+                            await self.device.connect()
+                        await self.device.release_touch()
+                        self.device.observed_at = 0
+                        task['wait_reason'] = ''
+                        q.owner = 'agent'
+                        self.wanted = True
+                        self.retry_at = None
+                        q.event('用户明确授权接管：' + task['title'])
+                except Exception:
+                    q.owner = 'paused'
+                    q.event('授权接管未完成；保留任务，不自动重试')
+                    raise
+                return {'granted': True, 'task_id': ident, 'owner': q.owner,
+                        'generation': q.generation,
+                        'next_action': '调用phone_wait领取正常租约，然后重新观察屏幕'}
         if action == 'wait':
+            q.expire()
+            if q.owner == 'agent' and q.lease and q.lease['agent'] == name:
+                task = q.check(name, q.lease['token'])
+                q.ensure_budget(task, 0)
+                return {'lease':q.lease['token'], 'task':dict(task), 'generation':q.generation}
             for _ in range(50):
                 if self.device.connected:
                     claim = q.claim(name)
                     if claim: return claim
                 await asyncio.sleep(.4)
                 agent['seen'] = time.monotonic()
-            own = next((t for t in self.snapshot()['tasks'] if t['agent']==name and t['status'] in ('queued','paused','running')), None)
+            own = next((t for t in self.snapshot()['tasks'] if t['agent']==name and not t.get('deleted_at') and t['status'] in ('queued','paused','running')), None)
             return {'waiting': True, 'reason': own.get('wait') if own else {'code':'no_task','label':'没有本对话待执行任务','next_action':'无须继续等待'}, 'owner': q.owner, 'head': q.head(), 'instruction': '等待人交回控制权或前序任务结束；可再次调用 phone_wait。不要另开控制通道。'}
         q.check(name, token)
+        if action == 'heartbeat':
+            task = q.check(name, token)
+            q.ensure_budget(task, 0)
+            return {'task_id':task['id'], 'renewed':True, 'continuation':q.review_summary(task)}
+        if action == 'delivery_confirm':
+            async with self.op:
+                task = q.check(name, token)
+                q.ensure_budget(task, 0)
+                receipt = self.observations.receipt(task['id'], q.generation, payload.get('checks'), [])
+                return q.confirm_delivery(task, payload.get('key'), payload.get('outcome'), receipt)
         if action == 'input_probe':
+            if q.check(name, token).get('long_task'): raise PermissionError('长任务只通过phone_step输入')
             async with self.op:
                 q.check(name, token)
                 result = await probe_inputs(self.device)
@@ -143,6 +299,9 @@ class Console:
         if action == 'finish':
             task = q.check(name, token)
             receipt = self.observations.receipt(task['id'], q.generation, payload.get('checks'), payload.get('unresolved'), bool(payload.get('blocked')))
+            if task.get('pending_delivery'):
+                receipt['verification']='unverified'
+                receipt['unresolved'].append('存在未确认发送，禁止计入送达或重放')
             required=task.get('required_milestones',[]) or payload.get('required_milestones',[])
             if not isinstance(required,list) or len(required)>20 or any(not isinstance(k,str) or not k.strip() for k in required):
                 raise ValueError('required_milestones必须为至多20个阶段key')
@@ -183,6 +342,15 @@ class Console:
                 source=self.observations.records[payload['observation_id']]
                 if source['tool'] not in ('mobile_list_elements_on_screen','mobile_take_screenshot'):
                     raise ValueError('输入必须基于界面文字或截图，不能使用应用列表等观察')
+                if task.get('long_task'):
+                    kind = payload.get('input_kind')
+                    if kind not in ('navigation','send'):
+                        raise ValueError('长任务需明确input_kind为navigation或send')
+                    if (kind == 'send') != bool(payload.get('delivery_key')):
+                        raise ValueError('发送必须标注delivery_key，导航不得冒用发送台账')
+                q.ensure_budget(task, 1 + attempts + (1 if target is not None else 0))
+                if task.get('pending_delivery'):
+                    raise PermissionError('上次发送未确认，只能先读取现场并核验')
                 q.checkpoint(name,token,payload['progress'],payload['next_action'])
                 started=time.monotonic()
                 if target is not None:
@@ -194,7 +362,9 @@ class Console:
                         current.setdefault('content',[]).append({'type':'text','text':json.dumps({'phone_harness_step':{'action_dispatched':False,'target_check':reason,'instruction':'未点击；基于本次新观察重新决定，不猜坐标或盲重试'}},ensure_ascii=False)})
                         return current
                     payload={**payload,'arguments':point}
-                result=await self.agent_tool('call',payload,name,token,agent)
+                if payload.get('delivery_key') is not None:
+                    q.begin_delivery(task, payload['delivery_key'])
+                result=await self.agent_tool('call',payload,name,token,agent, step_input=True)
                 if result.get('isError'): return result
                 for attempt in range(attempts):
                     try:
@@ -211,19 +381,34 @@ class Console:
                     'instruction':'文字匹配不是任务完成；检查读回。未找到预期时先观察/换策略，不自动重复输入。'}},ensure_ascii=False)})
                 return observed
         if action in ('tools','call'):
-            if action == 'call' and payload.get('name') not in ALLOWED:
+            if action == 'call' and payload.get('name') in FILE_NAMES and q.check(name,token).get('long_task'):
+                raise PermissionError('长任务阶段不混用文件中转预算')
+            if action == 'call' and payload.get('name') not in ALLOWED | FILE_NAMES:
                 raise ValueError('需要有效的手机工具名称；读取目录请使用 phone_tools')
+            if action == 'call' and payload.get('name') == 'mobile_transfer_job':
+                # Progress reads must not wait behind a long checksum; caller
+                # renewal still requires the normal authenticated lease above.
+                task=q.check(name,token)
+                value=self.transfer_jobs.handle(payload['name'],payload.get('arguments') or {},task,name,token)
+                return {'content':[{'type':'text','text':json.dumps(value,ensure_ascii=False)}]}
             async with self.op:
                 return await self.agent_tool(action,payload,name,token,agent)
         raise ValueError('未知助手动作')
 
-    async def agent_tool(self, action, payload, name, token, agent):
+    async def agent_tool(self, action, payload, name, token, agent, step_input=False):
         q=self.queue
         task = q.check(name, token)
-        if task['steps'] >= 200:
-            q.finish(name, token, '已达200步上限，请缩小任务或人工检查', True)
-            raise RuntimeError('任务达到步数上限')
-        task['steps'] += 1
+        file_call = action == 'call' and payload.get('name') in FILE_NAMES
+        if task.get('long_task'):
+            if file_call: raise PermissionError('长任务阶段不混用文件中转预算')
+            if action == 'call' and payload.get('name') not in READS and not step_input:
+                raise PermissionError('长任务输入必须使用phone_step并保留读回预算')
+        if task.get('pending_delivery') and action == 'call' and payload.get('name') not in READS and not step_input:
+            raise PermissionError('存在未确认发送；先读屏核验，禁止继续输入')
+        if not file_call:
+            q.ensure_budget(task, 0 if action == 'tools' else 1)
+        if file_call: task['file_calls'] = task.get('file_calls', 0) + 1
+        elif action != 'tools': task['steps'] += 1
         tool_name = payload.get('name','')
         if action == 'call' and tool_name not in READS:
             self.observations.invalidate(task['id'])
@@ -239,8 +424,16 @@ class Console:
         q.save()
         try:
             async with asyncio.timeout(55):
-                result = await self.device.backend(None if action == 'tools' else payload.get('name'), payload.get('arguments'), q.generation,
-                                                   lambda: q.check(name, token), agent['name'])
+                if action == 'call' and tool_name in FILE_NAMES:
+                    if tool_name in ('mobile_transfer_start','mobile_transfer_job'):
+                        value = self.transfer_jobs.handle(tool_name, payload.get('arguments') or {}, task, name, token)
+                    else:
+                        value = await self.transfers.handle(tool_name, payload.get('arguments') or {}, task, lambda: q.check(name, token))
+                    result = {'content':[{'type':'text','text':json.dumps(value,ensure_ascii=False)}]}
+                else:
+                    result = await self.device.backend(None if action == 'tools' else payload.get('name'), payload.get('arguments'), q.generation,
+                                                       lambda: q.check(name, token), agent['name'])
+                    if action == 'tools': result['tools'].extend(FILE_TOOLS)
         except Exception as exc:
             self.observations.invalidate(task['id'])
             self.device.observed_at = 0
@@ -252,7 +445,7 @@ class Console:
             self.available_tools = {t['name'] for t in result.get('tools', [])}
             self.tools_checked_at = now()
             result['capabilities'] = catalog(self.device.connected, q.owner, self.available_tools, self.tools_checked_at)
-        elif tool_name in READS and not result.get('isError'):
+        elif tool_name in READS and tool_name not in ('mobile_transfer_manifest','mobile_transfer_job') and not result.get('isError'):
             # Screen reads must also pass the backend's nonempty observation guard.
             valid = bool(result.get('content'))
             if tool_name in ('mobile_take_screenshot','mobile_list_elements_on_screen'):
@@ -267,6 +460,23 @@ class Console:
         q = self.queue
         notice = None
         self.error = None
+        if action in ('trash', 'restore', 'hold', 'resume'):
+            ids = data.get('ids')
+            if not isinstance(ids, list) or not ids or len(ids)>500 or any(not isinstance(i,str) for i in ids) or len(set(ids))!=len(ids):
+                raise ValueError('请选择有效任务')
+            q.manage(action, ids, validate_only=True)
+            if action in ('trash','hold') and q.current in ids:
+                await self.transition_to('human', '停止所选任务，等待在途动作结束；进度保留')
+            async with self.transition, self.op:
+                q.manage(action, ids)
+            return self.snapshot()
+        if action == 'position':
+            q.position(data['id'], data.get('position'), data.get('expected_order'))
+            return self.snapshot()
+        if action == 'review_approve':
+            async with self.transition, self.op:
+                q.approve_continuation(data)
+            return self.snapshot()
         if action == 'activity_preference':
             if not isinstance(data.get('enabled'),bool): raise ValueError('记录开关需要布尔值')
             self.activity.data['enabled']=data['enabled'];self.activity.save()
@@ -286,6 +496,7 @@ class Console:
                     if not self.device.connected:
                         await self.device.close()
                         await self.device.connect()
+                    q.revoke_continuations('新连接：需要重新人工检查')
                     q.owner = 'human'
                     q.invalidate('新会话由你控制')
                     q.event('手机已连接，控制权归你')
@@ -345,12 +556,19 @@ class Console:
             else: q.cancel(data['id'])
         elif action == 'retry':
             t = q.get(data['id'])
+            if t.get('deleted_at') or t.get('user_held'):
+                raise PermissionError('请先恢复任务并取消单独暂停')
+            if q.needs_review(t) or t.get('long_task'):
+                raise PermissionError('needs_review：请使用人工阶段审批，不得重排清零')
             if t['status'] not in ('blocked','unverified','paused'): raise ValueError('只有受阻、待核验或暂停任务可重新排队')
             t.setdefault('attempts',[]).append({k:t.get(k) for k in ('result','receipt','finished_at','steps','milestones')})
             t.update(status='queued', milestones=[], wait_reason='', action='等待原助手重新观察', prior_steps=t.get('prior_steps',0)+t['steps'], steps=0)
             q.save()
+        elif action == 'edit':
+            async with self.transition, self.op:
+                q.edit(data['id'], data.get('title'), data.get('instruction'), data.get('expected_title'), data.get('expected_instruction'))
         elif action == 'add':
-            agent = self.agents.get(data.get('agent'))
+            agent = next((a for a in self.known_agents() if a['id']==data.get('agent')), None)
             if not agent: raise ValueError('先接入一个助手，再将任务交给它')
             q.add(data.get('title',''), data.get('instruction',''), data['agent'], agent['name'])
         elif action == 'close_preference':
@@ -492,6 +710,22 @@ async def agent(request):
     return web.json_response(await c.agent_request(payload))
 
 
+async def authorized_control(request):
+    """Compatibility CLI: same authenticated broker, no new agent registration.
+
+    The console bearer is already checked by secure. Reuse the registered
+    identity server-side without disclosing/rotating its private credential.
+    All task/generation/one-use grant checks remain in agent_request.
+    """
+    c = request.app['console']
+    payload = await request.json()
+    registered = c.agents.get(payload.get('agent'))
+    if not registered:
+        raise PermissionError('请先通过原MCP客户端读取phone_status建立助手身份')
+    return web.json_response(await c.agent_request({**payload,
+        'action':'request_control', 'agent_token':registered['token']}))
+
+
 async def stream(request):
     c = request.app['console']
     ws = web.WebSocketResponse(heartbeat=20, max_msg_size=32768, compress=False)
@@ -514,6 +748,7 @@ async def stream(request):
                 async with c.op:
                     if c.queue.owner != 'human' or data.get('generation') != c.queue.generation:
                         raise PermissionError('你还没有控制权，请先点击“我来操作”')
+                    c.queue.revoke_continuations('人工操作改变现场：需重新检查阶段')
                     if data.get('type') == 'key': await c.device.key(int(data['code']))
                     elif data.get('type') == 'touch': await c.device.touch(int(data['action']), data['x'], data['y'], int(data['width']), int(data['height']))
                     elif data.get('type') == 'text': await c.device.text(data.get('text',''))
@@ -540,6 +775,7 @@ async def serve(config, state_dir):
     app.router.add_get('/api/state', state)
     app.router.add_post('/api/control', control)
     app.router.add_post('/api/agent', agent)
+    app.router.add_post('/api/request-control', authorized_control)
     app.router.add_get('/stream', stream)
     runner = web.AppRunner(app, access_log=None)
     await runner.setup()
@@ -570,6 +806,7 @@ async def serve(config, state_dir):
         notifications.cancel()
         await asyncio.gather(c.monitor, panel_monitor, activity_monitor, input_monitor, app_monitor, notifications, return_exceptions=True)
         c.queue.invalidate('服务结束，等待手动恢复')
+        await c.transfer_jobs.close()
         async with c.op: await c.device.close()
         await asyncio.gather(*(ws.close() for ws in list(c.device.watchers)), return_exceptions=True)
         await runner.cleanup()

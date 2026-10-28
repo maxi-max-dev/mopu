@@ -7,7 +7,7 @@ function configureActions(){actionOverlay.configure($('showActions').checked,Num
 $('showActions').onchange=configureActions;$('actionSize').onchange=configureActions;configureActions();
 let state = null, socket = null, decoder = null, config = null, needKey = true;
 let rendered = 0, lastFrame = 0, frameWindow = 0, fps = 0, packetSize = {width:0,height:0};
-let showHistory = false;
+let taskView='queue', searchText='', selectedTasks=new Set(), visibleTasks=[], deleteIds=[], orderId=null, orderIds=[];
 let toastTimer, queueSignature = '', detailId = null, controlBusy = false, pointer = null;
 let panelBusy = false, previousPanel = 'unknown', stateReceivedAt = 0;
 const labels = {queued:'等待执行',running:'正在执行',paused:'已暂停',done:'已完成',unverified:'结果待核验',blocked:'需要处理',cancelled:'已结束'};
@@ -30,24 +30,30 @@ document.querySelectorAll('dialog').forEach(dialog=>dialog.addEventListener('cli
 function taskPane(open){$('taskPane').classList.toggle('collapsed',!open);$('toggleTasks').setAttribute('aria-expanded',String(open));$('toggleTasks').setAttribute('aria-label',open?'收起任务队列':'展开任务队列');$('toggleTasks').title=open?'收起任务队列':'展开任务队列';fitVideo();}
 $('toggleTasks').onclick=()=>{document.body.classList.remove('focus');$('focus').setAttribute('aria-pressed','false');taskPane($('taskPane').classList.contains('collapsed'));};
 $('closeTasks').onclick=$('drawerScrim').onclick=()=>{taskPane(false);$('toggleTasks').focus();};
-$('railHistory').onclick=()=>{document.body.classList.remove('focus');$('focus').setAttribute('aria-pressed','false');taskPane(true);showHistory=true;renderQueue();};
-$('queueTab').onclick=()=>{showHistory=false;renderQueue();};
-$('historyTab').onclick=()=>{showHistory=true;renderQueue();};
+$('railHistory').onclick=()=>{document.body.classList.remove('focus');$('focus').setAttribute('aria-pressed','false');taskPane(true);switchTaskView('history');};
+$('queueTab').onclick=()=>switchTaskView('queue');
+$('trashTab').onclick=()=>switchTaskView('trash');
+$('historyTab').onclick=()=>{switchTaskView('history');};
 $('closePauses').onchange=()=>control('close_preference',{enabled:$('closePauses').checked});
 $('focus').onclick=()=>{const focused=document.body.classList.toggle('focus');$('focus').setAttribute('aria-pressed',String(focused));if(focused)taskPane(false);fitVideo();};
 $('settingsOpen').onclick=()=>show('settings');
 $('capabilitiesOpen').onclick=()=>{renderCapabilities();show('capabilitiesDetail');};
-$('integrationOpen').onclick=()=>show('integration');
+$('integrationOpen').onclick=()=>{renderIntegration();show('integration');};
+function renderIntegration(){const online=(state?.agents||[]).filter(a=>a.online);$('integrationStatus').textContent=online.length?`近期有响应：${online.map(a=>a.name).join('、')}。这不代表正在执行。`:'尚无助手响应。请将配置放进原AI客户端，再回这里检查连接。';}
+$('integrationCheck').onclick=async()=>{try{state=await api('state');renderIntegration();}catch(e){$('integrationStatus').textContent=e.message;}};
+for(const [button,source]of [['copyMcp','mcpCommand'],['copyCli','cliCommand']])$(button).onclick=async()=>{try{await navigator.clipboard.writeText($(source).textContent);toast('命令已复制；请替换为此聊天的独立标识。');}catch(e){toast('复制不可用，请选中上方命令手动复制。');}};
 for (const action of ['connect','takeover','release','pause','reconnect','rotate']) $(action).onclick=()=>control(action);
 $('panelPower').onclick=async()=>{if(controlBusy||panelBusy)return;const on=panelState()==='off';panelBusy=true;renderPanel();try{await control('panel_power',{on});}finally{panelBusy=false;renderPanel();}};
 $('disconnect').onclick=async()=>{await control('disconnect');$('settings').close();};
 $('addOpen').onclick=()=>{
- const agents=state?.agents||[];
+ const agents=[...(state?.agents||[])].sort((a,b)=>Number(b.online)-Number(a.online));
  if(!agents.length){show('integration');return;}
- $('agentSelect').replaceChildren(...agents.map(agent=>{const option=element('option','',agent.name);option.value=agent.id;return option;}));
- show('newTask');
+ $('agentSelect').replaceChildren(...agents.map(agent=>{const option=element('option','',agent.name+(agent.online?' · 在线':' · 离线，需回原聊天继续'));option.value=agent.id;return option;}));
+ updateNewTaskHint();show('newTask');
 };
-$('newTaskForm').onsubmit=async event=>{event.preventDefault();try{state=await api('control',{action:'add',title:$('taskTitle').value,instruction:$('taskInstruction').value,agent:$('agentSelect').value});$('newTask').close();$('newTaskForm').reset();render();}catch(error){toast(error.message);}};
+function updateNewTaskHint(){const a=state.agents.find(x=>x.id===$('agentSelect').value);$('newTaskHint').textContent=a?.online?'只加入队列。请在原聊天授权任务，助手会自行领取。':'此助手离线。添加后仅保存到队列，请回原聊天继续；不会自动启动AI。';}
+$('agentSelect').onchange=updateNewTaskHint;
+$('newTaskForm').onsubmit=async event=>{event.preventDefault();try{state=await api('control',{action:'add',title:$('taskTitle').value,instruction:$('taskInstruction').value,agent:$('agentSelect').value});$('newTask').close();$('newTaskForm').reset();taskView='queue';searchText='';$('taskSearch').value='';selectedTasks.clear();taskPane(true);render();toast('任务已加入队列，等待原助手领取。');}catch(error){toast(error.message);}};
 function send(data){if(socket?.readyState!==WebSocket.OPEN){toast('视频连接未就绪，请重新连接。');return false;}socket.send(JSON.stringify({...data,generation:state?.generation}));return true;}
 function hasControl(){return state?.owner==='human'&&state?.device.connected;}
 function panelState(){const t=state?.device.telemetry;if(!state?.device.connected||performance.now()-stateReceivedAt>3500||t?.panel_age==null||t.panel_age+(performance.now()-stateReceivedAt)/1000>5)return 'unknown';return ['on','off'].includes(t.panel)?t.panel:'unknown';}
@@ -207,6 +213,8 @@ document.querySelectorAll('[data-key]').forEach(button=>button.onclick=()=>send(
 $('textOpen').onclick=()=>{if(hasControl())show('textDialog');};
 $('textForm').onsubmit=event=>{event.preventDefault();if(send({type:'text',text:$('phoneText').value})){$('textDialog').close();$('phoneText').value='';canvas.focus();}};
 function taskLabel(task){
+ if(task.deleted_at)return '已删除';
+ if(task.user_held)return '你已暂停';
  if(task.status==='done')return task.receipt?.verification==='assistant_verified'?'原助手已核验':'历史完成 · 无结构化回执';
  return task.wait?.label||labels[task.status]||task.status;
 }
@@ -221,11 +229,112 @@ function renderCapabilities(){
  }
  box.append(element('p','note',c.health),element('p','note',c.limits.join('；')));
 }
+let editingTask=null;
+function editTask(task){
+ editingTask={id:task.id,expected_title:task.title,expected_instruction:task.instruction};
+ $('editTitle').value=task.title;$('editInstruction').value=task.instruction;$('editError').textContent='';show('editTask');
+}
+$('editTaskForm').onsubmit=async event=>{
+ event.preventDefault();const button=event.submitter;button.disabled=true;
+ try{state=await api('control',{action:'edit',...editingTask,title:$('editTitle').value,instruction:$('editInstruction').value});$('editTask').close();render();toast('要求已保存；原助手下次领取时读取。');}
+ catch(error){$('editError').textContent=error.message;}finally{button.disabled=false;}
+};
+function switchTaskView(view){taskView=view;selectedTasks.clear();queueSignature='';renderQueue();}
+$('taskSearch').oninput=()=>{searchText=$('taskSearch').value.trim().toLocaleLowerCase();selectedTasks.clear();renderQueue();};
+$('clearSearch').onclick=()=>{$('taskSearch').value='';searchText='';selectedTasks.clear();renderQueue();$('taskSearch').focus();};
+$('selectVisible').onchange=()=>{selectedTasks=$('selectVisible').checked?new Set(visibleTasks.map(t=>t.id)):new Set();renderSelection();document.querySelectorAll('.task-select').forEach(c=>c.checked=selectedTasks.has(c.value));};
+$('clearSelection').onclick=()=>{selectedTasks.clear();queueSignature='';renderQueue();};
+function renderSelection(){
+ const items=state.tasks.filter(t=>selectedTasks.has(t.id));
+ $('selectionCount').textContent=items.length?`已选 ${items.length} 项`:`${visibleTasks.length} 项`;
+ $('selectVisible').checked=!!visibleTasks.length&&items.length===visibleTasks.length;
+ $('selectVisible').indeterminate=items.length>0&&items.length<visibleTasks.length;
+ $('selectVisible').disabled=!visibleTasks.length;$('clearSelection').hidden=!items.length;$('batchActions').hidden=!items.length;
+ $('batchRestore').hidden=taskView!=='trash';$('batchTrash').hidden=taskView==='trash';
+ $('batchHold').hidden=taskView!=='queue';$('batchResume').hidden=taskView!=='queue';
+ $('batchHold').disabled=!items.some(t=>!t.user_held);$('batchResume').disabled=!items.some(t=>t.user_held);
+ $('clearSearch').hidden=!searchText;
+}
+async function manageTasks(action,ids){
+ try{state=await api('control',{action,ids});selectedTasks.clear();render();toast({trash:'已移入回收站，可随时恢复。',restore:'已恢复；未结束的任务保持暂停。',hold:'已暂停所选任务，其他等待任务不变。',resume:'已取消单独暂停；需要检查的任务仍先检查。'}[action]);return true;}
+ catch(error){toast(error.message);return false;}
+}
+function askDelete(ids){
+ deleteIds=[...ids];const tasks=state.tasks.filter(t=>deleteIds.includes(t.id));
+ $('deleteSummary').textContent=`将 ${tasks.length} 个任务移入回收站？`;
+ $('deleteNames').replaceChildren(...tasks.map(t=>element('li','',t.title)));
+ $('deleteCaution').textContent=tasks.some(t=>t.id===state.current)?'包含正在执行的任务：会先停止并交回你控制，已发出的动作可能已经完成。':tasks.some(t=>t.pending_delivery||t.continuation?.required)?'包含待核验或待检查任务：删除不会清除这些记录，也不会解除原有续接检查。':'';
+ $('deleteError').textContent='';show('deleteTasks');
+}
+$('confirmTrash').onclick=async()=>{
+ const b=$('confirmTrash');b.disabled=true;
+ try{state=await api('control',{action:'trash',ids:deleteIds});$('deleteTasks').close();if(deleteIds.includes(detailId))$('taskDetail').close();selectedTasks.clear();render();toast('已移入回收站，可随时恢复。');}
+ catch(error){$('deleteError').textContent=error.message;}finally{b.disabled=false;}
+};
+$('batchTrash').onclick=()=>askDelete([...selectedTasks]);
+$('batchRestore').onclick=()=>manageTasks('restore',[...selectedTasks]);
+$('batchHold').onclick=()=>manageTasks('hold',state.tasks.filter(t=>selectedTasks.has(t.id)&&!t.user_held).map(t=>t.id));
+$('batchResume').onclick=()=>manageTasks('resume',state.tasks.filter(t=>selectedTasks.has(t.id)&&t.user_held).map(t=>t.id));
+function waitingTasks(){return state.tasks.filter(t=>!t.deleted_at&&!t.user_held&&['queued','paused'].includes(t.status));}
+function openOrder(task){
+ const waiting=waitingTasks();orderId=task.id;orderIds=waiting.map(t=>t.id);$('orderName').textContent=task.title;$('orderError').textContent='';
+ $('orderPosition').replaceChildren(...waiting.map((t,i)=>{const o=element('option','',`${i+1}${i===0?' · 最前':i===waiting.length-1?' · 最后':''}${t.id===task.id?'（当前位置）':''}`);o.value=i+1;return o;}));
+ $('orderPosition').value=waiting.findIndex(t=>t.id===task.id)+1;show('orderTask');
+}
+$('orderForm').onsubmit=async e=>{e.preventDefault();const b=e.submitter;b.disabled=true;try{state=await api('control',{action:'position',id:orderId,expected_order:orderIds,position:Number($('orderPosition').value)});$('orderTask').close();render();toast('等待顺序已保存。');}catch(error){$('orderError').textContent=error.message;}finally{b.disabled=false;}};
+async function beginEdit(task){
+ if(state.owner!=='human'||state.lease_active){await control('takeover');if(state.owner!=='human'||state.lease_active)return;}
+ editTask(state.tasks.find(t=>t.id===task.id));
+}
+function deliveryText(task){
+ const d=task.delivery_summary;
+ if(!d||d.coverage==='unrecorded')return '发送数量未知 · 尚无逐条记录';
+ return `已核验 ${d.verified} · 待确认 ${d.pending} · 未发送 ${d.not_sent}（仅记录项）`;
+}
+function taskActions(task,full=false){
+ const controls=element('div','task-controls');
+ const more=element('details','task-more'),summary=element('summary','','更多');more.append(summary);
+ more.onclick=e=>e.stopPropagation();more.onkeydown=e=>{if(e.key==='Escape'){e.preventDefault();e.stopPropagation();more.open=false;summary.focus();}};
+ function add(text,fn,disabled=false,cls='',primary=false){const b=element('button',primary?'task-main':cls,text);b.disabled=disabled;b.onclick=e=>{e.stopPropagation();fn();};(primary?controls:more).append(b);}
+ const active=!['done','cancelled'].includes(task.status);
+ if(task.deleted_at){add('恢复任务',()=>manageTasks('restore',[task.id]),false,'',true);if(!full)add('查看记录',()=>detail(task.id));controls.append(more);return controls;}
+ if(task.status==='running')add('暂停任务',()=>manageTasks('hold',[task.id]),false,'',true);
+ else if(!full)add(task.status==='unverified'||task.pending_delivery?'查看待核验项':task.user_held?'查看暂停原因':active?'查看任务':'查看结果',()=>detail(task.id),false,'',true);
+ if(!full&&task.status==='running')add('查看详情',()=>detail(task.id));
+ if(active){
+  add(state.owner==='human'&&!state.lease_active?'编辑要求':'接管并编辑',()=>beginEdit(task));
+  if(task.status!=='running')add(task.user_held?'取消单独暂停':'暂停任务',()=>manageTasks(task.user_held?'resume':'hold',[task.id]));
+ }
+ if(!task.user_held&&['queued','paused'].includes(task.status))add('调整顺序',()=>openOrder(task));
+ if(!task.user_held&&task.reviews?.at(-1)?.kind!=='whole_task'&&task.continuation&&['blocked','paused','unverified'].includes(task.status)&&(task.long_task||task.continuation.required))add('检查并续接',()=>openContinuationReview(task),state.owner!=='human'||state.lease_active);
+ if(!task.user_held&&!task.pending_delivery&&!task.long_task&&!task.continuation?.required&&(['blocked','unverified'].includes(task.status)||(task.status==='paused'&&task.wait_reason)))add('处理后重新排队',()=>control('retry',{id:task.id}));
+ add('移入回收站',()=>askDelete([task.id]),false,'danger');controls.append(more);
+ return controls;
+}
 function detail(id){
  const task=state.tasks.find(task=>task.id===id);if(!task)return;detailId=id;$('detailTitle').textContent=task.title;
  const box=$('detailContent');box.replaceChildren(element('p','task-id',task.agent_name+' · '+taskLabel(task)+' · '+task.id));
- for(const [label,value]of [['任务要求',task.instruction],['已保存进度',task.checkpoint],['当前动作',task.action],['继续方式',task.wait?.next_action],['结果',task.result]]){
+ box.append(element('p','delivery-summary',deliveryText(task)));
+ const responsible=state.agents.find(a=>a.id===task.agent);
+ box.append(element('p','note',`执行助手：${task.agent_name} · ${responsible?.online?'近期有响应':'离线，需回原聊天继续'}`));
+ const actions=taskActions(task,true);actions.classList.add('detail-actions');box.append(actions);
+ if(state.owner!=='human')box.append(element('p','note','需要编辑要求或检查续接时，请先在主界面接管手机。'));
+ for(const [label,value]of [['任务要求',task.instruction],['已保存进度',task.checkpoint],['当前动作',task.action],['继续方式',task.wait?.next_action],[task.receipt?.verification==='assistant_verified'?'助手报告（已关联读回）':'助手报告（未核验）',task.result]]){
   if(value)box.append(element('h3','',label),element('pre','',value));
+ }
+ if(task.continuation){
+  const c=task.continuation;
+  const technical=element('details','task-ledger');technical.append(element('summary','','调用与授权详情'),element('p','',`累计调用 ${c.total_calls} · 当前剩余 ${c.remaining_calls}`));box.append(technical);
+  if(c.pending_delivery)box.append(element('p','receipt-unresolved','未确认发送：'+c.pending_delivery+'；只允许读取核验，禁止重发。'));
+  const ledger=element('details','task-ledger');ledger.append(element('summary','',task.deliveries?`逐条发送记录 · ${task.deliveries.length} 项`:'逐条发送记录 · 未记录'));box.append(ledger);
+  for(const d of task.deliveries||[]){
+   const entry=element('details');entry.append(element('summary','',d.key+' · '+d.outcome));
+   for(const check of d.receipt?.checks||[])entry.append(element('p','',check.criterion+'：'+check.observed),element('small','',check.observed_at+' · '+check.tool));
+   if(!d.receipt)entry.append(element('p','receipt-unresolved','尚无送达核验，禁止重发。'));ledger.append(entry);
+  }
+  const reviews=element('details','task-ledger');reviews.append(element('summary','',`授权历史 · ${(task.reviews||[]).length} 次`));technical.append(reviews);
+  for(const review of task.reviews||[])reviews.append(element('pre','',`${review.scope}\n${review.state} · ${review.budget}调用 · 最多${review.max_deliveries}发送项\n来源：${review.source==='assistant_user_attestation'?'当前聊天授权（助手转述）':'控制台阶段检查'}\n${review.user_authorization||review.review_note||''}`));
+
  }
  if(task.milestones?.length){
   box.append(element('h3','','已验收阶段'),element('p','note','以下为发生时的读回，最终结果仍需重新核验。'));
@@ -238,45 +347,69 @@ function detail(id){
   if(!r.checks.length)box.append(element('p','note','尚无与手机读回关联的验收项。'));
   for(const issue of r.unresolved)box.append(element('p','receipt-unresolved','未解决：'+issue));
  }
+ if(task.management_history?.length){const h=element('details','task-ledger');h.append(element('summary','',`管理记录 · ${task.management_history.length} 次`));for(const m of task.management_history)h.append(element('p','',new Date(m.at).toLocaleString()+' · '+({trash:'移入回收站',restore:'从回收站恢复',hold:'单独暂停',resume:'取消单独暂停'}[m.action]||m.action)));box.append(h);}
+ if(task.requirement_history?.length){const history=element('details','task-ledger');history.append(element('summary','',`要求修改历史 · ${task.requirement_history.length} 次`));for(const old of task.requirement_history)history.append(element('pre','',old.at+'\n'+old.title+'\n'+old.instruction));box.append(history);}
  if(task.attempts?.length){const history=element('details');history.append(element('summary','',`此前尝试 ${task.attempts.length} 次`));for(const a of task.attempts)history.append(element('pre','',a.result||'未完成'));box.append(history);}
- if(!$('taskDetail').open)show('taskDetail');
+ if(!$('taskDetail').open){show('taskDetail');$('taskDetail').scrollTop=0;}
 }
 function renderQueue(){
- const signature=JSON.stringify([state.tasks,state.agents,showHistory]);if(signature===queueSignature)return;queueSignature=signature;
+ // Keep an open action menu stable while live progress updates arrive.
+ if(document.querySelector('.task-more[open]'))return;
+ const signature=JSON.stringify([state.tasks,state.agents,state.owner,state.lease_active,taskView,searchText,[...selectedTasks]]);if(signature===queueSignature)return;queueSignature=signature;
  const box=$('taskList');box.replaceChildren();
- const tasks=state.tasks.filter(task=>showHistory?['done','cancelled'].includes(task.status):!['done','cancelled'].includes(task.status));
- if(showHistory)tasks.reverse();
- $('queueTab').classList.toggle('selected',!showHistory);$('queueTab').setAttribute('aria-pressed',String(!showHistory));$('historyTab').setAttribute('aria-pressed',String(showHistory));$('historyTab').classList.toggle('selected',showHistory);$('historyTab').textContent='记录 '+state.tasks.filter(t=>['done','cancelled'].includes(t.status)).length;
- if(!tasks.length)box.append(element('p','queue-empty','把需要手机完成的任务交给已接入的助手。任务、进度和结果都会留在这里。'));
- tasks.forEach((task,index)=>{
+ let tasks=state.tasks.filter(t=>taskView==='trash'?t.deleted_at:!t.deleted_at&&(taskView==='history'?['done','cancelled'].includes(t.status):!['done','cancelled'].includes(t.status)));
+ if(searchText)tasks=tasks.filter(t=>[t.title,t.instruction,t.agent_name].some(v=>(v||'').toLocaleLowerCase().includes(searchText)));
+ const group=t=>t.user_held?'你已暂停':['blocked','unverified'].includes(t.status)?'需要处理':'执行队列';
+ if(taskView==='queue'){const rank={'执行队列':0,'需要处理':1,'你已暂停':2};tasks.sort((a,b)=>rank[group(a)]-rank[group(b)]);}
+ else tasks.reverse();
+ visibleTasks=tasks;selectedTasks=new Set([...selectedTasks].filter(id=>tasks.some(t=>t.id===id)));
+ for(const [id,view,label]of [['queueTab','queue','任务'],['historyTab','history','已结束'],['trashTab','trash','回收站']]){
+  const count=state.tasks.filter(t=>view==='trash'?t.deleted_at:!t.deleted_at&&(view==='history'?['done','cancelled'].includes(t.status):!['done','cancelled'].includes(t.status))).length;
+  $(id).classList.toggle('selected',taskView===view);$(id).setAttribute('aria-pressed',String(taskView===view));$(id).textContent=label+' '+count;
+ }
+ renderSelection();
+ if(!tasks.length)box.append(element('p','queue-empty',searchText?'没有匹配的任务。试试任务名、要求中的关键词或助手名。':taskView==='trash'?'回收站是空的。删除的任务会保留在这里，可以恢复。':taskView==='history'?'还没有已结束的任务。':'没有待办任务。点右上角「＋」添加手机任务。'));
+ let lastGroup='';
+ const order=state.tasks.filter(t=>!t.deleted_at&&!t.user_held&&['queued','paused','running'].includes(t.status));
+ tasks.forEach(task=>{
+  const heading=taskView==='queue'?group(task):'';
+  if(heading!==lastGroup){box.append(element('h3','queue-group',heading));lastGroup=heading;}
   const row=element('article','task '+task.status);row.tabIndex=0;row.setAttribute('aria-label',task.title+'，'+taskLabel(task));
-  const top=element('div','task-top');top.append(element('span','task-index',String(index+1).padStart(2,'0')),element('span','task-agent',task.agent_name),element('span','task-status',taskLabel(task)));row.append(top,element('div','task-title',task.title),element('div','task-action',task.wait?.code==='running'?task.action:task.wait?.next_action||task.action));
-  const controls=element('div','task-controls');
-  function button(text,action,args={}){const b=element('button','',text);b.setAttribute('aria-label',text==='↑'?'上移任务':text==='↓'?'下移任务':text);b.onclick=event=>{event.stopPropagation();control(action,{id:task.id,...args});};controls.append(b);}
-  if(['queued','paused'].includes(task.status)){button('↑','move',{direction:'up'});button('↓','move',{direction:'down'});button('优先执行','prioritize');}
-  if(['queued','paused','running','blocked','unverified'].includes(task.status))button('结束','cancel');
-  if(['blocked','unverified'].includes(task.status)||(task.status==='paused'&&task.wait_reason))button('处理后重新排队','retry');
-  if(controls.children.length)row.append(controls);row.onclick=()=>detail(task.id);row.onkeydown=event=>{if(event.key==='Enter'&&event.target===row)detail(task.id);};box.append(row);
+  const top=element('div','task-top'),check=element('input','task-select');check.type='checkbox';check.value=task.id;check.checked=selectedTasks.has(task.id);check.setAttribute('aria-label','选择任务：'+task.title);
+  check.onclick=e=>e.stopPropagation();check.onchange=()=>{check.checked?selectedTasks.add(task.id):selectedTasks.delete(task.id);renderSelection();};
+  const pos=order.findIndex(t=>t.id===task.id);top.append(check,element('span','task-index',taskView==='queue'&&pos>=0?String(pos+1).padStart(2,'0'):''),element('span','task-agent',task.agent_name),element('span','task-status',taskLabel(task)));
+  row.append(top,element('div','task-title',task.title),element('div','task-action',task.deleted_at?task.wait?.next_action:['done','cancelled'].includes(task.status)?task.result||task.action:task.wait?.code==='running'?task.action:task.wait?.next_action||task.action));
+  if(task.deleted_at&&(task.pending_delivery||task.continuation?.required))row.append(element('p','note','原任务待检查，仍可能阻止同一助手继续。请恢复原任务处理；删除不清除未确认发送。'));
+  row.append(element('p','task-progress',deliveryText(task)));
+  const updated=task.finished_at||task.checkpoint_at||task.created_at;
+  if(updated)row.append(element('p','task-updated','更新于 '+new Date(updated).toLocaleString()));
+  row.append(taskActions(task));row.onclick=()=>detail(task.id);row.onkeydown=e=>{if(e.key==='Enter'&&e.target===row)detail(task.id);};box.append(row);
  });
- const agents=$('agents');agents.replaceChildren();if(!state.agents.length)agents.textContent='尚无助手接入';
- for(const agent of state.agents){const pill=element('span','agent-pill '+(agent.online?'online':''));pill.append(element('i'),document.createTextNode(agent.name));pill.title=agent.online?'近期有调用':'等待助手调用';agents.append(pill);}
+ const agents=$('agents');agents.replaceChildren();if(!state.agents.length)agents.textContent='等待原助手连接；请回原聊天继续';
+ for(const agent of state.agents.filter(a=>a.online)){const pill=element('span','agent-pill online');pill.append(element('i'),document.createTextNode(agent.name));pill.title=agent.online?'近期有调用':'等待助手调用';agents.append(pill);}
+ const offline=state.agents.filter(a=>!a.online).length;if(offline)agents.append(element('span','note',`${offline} 位助手离线 · 请回原聊天继续`));
  if($('taskDetail').open&&detailId)detail(detailId);
 }
+
 function render(){
  renderInputActivity();
- if(!state)return;$('closePauses').checked=state.settings.close_pauses;const connected=state.device.connected, owner=state.owner, telemetry=state.device.telemetry||{}, current=state.tasks.find(task=>task.id===state.current), head=state.tasks.find(task=>['queued','paused','running'].includes(task.status));
+ if(!state)return;$('runtimeVersion').textContent='v'+(state.server_version||'版本待核验');$('closePauses').checked=state.settings.close_pauses;const connected=state.device.connected, owner=state.owner, telemetry=state.device.telemetry||{}, current=state.tasks.find(task=>task.id===state.current), head=state.tasks.find(task=>!task.deleted_at&&!task.user_held&&['queued','paused','running'].includes(task.status));
  if(!connected)actionOverlay.clear();
  $('connection').textContent=connected?'USB 已连接':'USB 未连接';$('usbDot').className=connected?'online':'';
  $('ownerDot').className='owner-dot '+owner;
- const names={human:'你正在控制手机',agent:current?current.agent_name+' 正在操作':'助手控制已开启',paused:'手机任务已暂停',transition:'正在交接控制权'};
+ const headOnline=state.agents.some(a=>a.id===(current||head)?.agent&&a.online);
+ const names={human:'你正在控制手机',agent:current?(headOnline?current.agent_name+' 持有手机':'原助手未响应，等待续接'):'手机可由助手领取',paused:'手机任务已暂停',transition:'正在交接控制权'};
  $('ownerTitle').textContent=connected?(names[owner]||'等待连接'):'会话未开始';
  $('ownerDescription').textContent=!connected?(state.device.error||'连接 USB 手机，开始本地投屏'):owner==='human'?'助手已停止读取和输入，你可以直接操作':owner==='agent'?(current?.wait?.label&&current.wait.code!=='running'?current.wait.label+' · '+current.wait.next_action:current?.action||(head?'等待 '+head.agent_name+' 领取「'+head.title+'」':'等待助手添加手机任务')):owner==='transition'?'等待已发出的动作结束；后续动作已停止':'任务进度已保留，交回后重新观察当前画面';
+ if(connected&&owner==='human')$('ownerDescription').textContent=head?(head.agent_name+(headOnline?'近期有响应':'离线')+' · 当前未执行'):'当前没有任务执行';
  $('ownerTitle').title=$('ownerDescription').textContent;
+ $('release').textContent=head&&!headOnline?'允许助手领取':'交回助手';
+ $('release').title='只交出手机控制权，不会启动AI；一次授权任务可由原聊天调用phone_start直接开始';
  $('connect').hidden=connected;$('takeover').hidden=!connected||owner==='human';$('release').hidden=!connected||owner==='agent';$('pause').hidden=!connected||owner==='human'||owner==='paused';
  for(const button of document.querySelectorAll('[data-key],#textOpen,#rotate'))button.disabled=!hasControl();
  $('quiet').disabled=!connected;
  canvas.classList.toggle('controllable',hasControl());
- const count=state.tasks.filter(t=>['queued','paused','running','blocked','unverified'].includes(t.status)).length;$('queueCount').textContent=count;$('queueCount').hidden=!count;
+ const count=state.tasks.filter(t=>!t.deleted_at&&['queued','paused','running','blocked','unverified'].includes(t.status)).length;$('queueCount').textContent=count;$('queueCount').hidden=!count;
  $('orientationLabel').textContent=state.device.width>state.device.height?'转竖屏':'转横屏';
  renderPanel();
  renderHealth();
@@ -321,3 +454,25 @@ canvas.addEventListener('keydown',event=>{if(!hasControl())return;const codes={E
 setInterval(()=>{fps=frameWindow;frameWindow=0;$('videoStatus').textContent=rendered?'H.264 · '+packetSize.width+' × '+packetSize.height+' · '+(fps?fps+' fps':'静态画面'):'本机视频流';},1000);
 setInterval(()=>{renderPanel();renderHealth();if(performance.now()-stateReceivedAt>3500)renderInputActivity();},500);
 poll();if('VideoDecoder'in window)websocket();else{$('connect').disabled=true;toast('当前浏览器不支持 WebCodecs。请用最新版 Chrome 打开此本机地址。');}
+
+function openContinuationReview(task){
+ const dialog=element('dialog');const form=element('form');
+ form.append(element('h2','','人工阶段检查'),element('p','',task.title),element('pre','',task.checkpoint||'尚无进度记录'),element('pre','',task.result||'尚无结果记录'));
+ form.append(element('p','',`累计调用 ${task.continuation.total_calls}；未确认发送：${task.pending_delivery||'无记录（仍需检查最后动作）'}`));
+ function field(label,tag,type,value){const row=element('label','',label);const input=element(tag);if(type)input.type=type;input.required=true;if(value!==undefined)input.value=value;row.append(input);form.append(row);return input;}
+ const note=field('检查结论（已确认进度、最后动作及不确定项）','textarea');note.maxLength=2000;
+ const scope=field('仅本阶段的范围与停止条件','textarea');scope.maxLength=2000;
+ const budget=field('本阶段调用上限（2–200）','input','number','200');budget.min=2;budget.max=200;
+ const count=field('本阶段发送项上限（0–20，0禁止发送）','input','number','0');count.min=0;count.max=20;
+ const progress=field('我已检查已有进度与去重记录','input','checkbox');
+ const uncertainty=field('我已检查最后动作；未确认发送只允许先核验，不重发','input','checkbox');
+ const error=element('p','receipt-unresolved');form.append(error);
+ const approve=element('button','primary','批准此有限阶段');approve.type='submit';
+ const cancel=element('button','','取消');cancel.type='button';cancel.onclick=()=>dialog.close();form.append(approve,cancel);
+ const generation=state.generation, version=task.continuation.version;
+ form.onsubmit=async event=>{event.preventDefault();approve.disabled=true;
+  try{state=await api('control',{action:'review_approve',id:task.id,expected_generation:generation,review_version:version,review_note:note.value,scope:scope.value,budget:Number(budget.value),max_deliveries:Number(count.value),checked_progress:progress.checked,checked_uncertainty:uncertainty.checked});render();dialog.close();toast('有限阶段已批准；仍由你控制手机，交回后原助手先观察。');}
+  catch(e){error.textContent=e.message+'。若状态变化，请关闭并重新检查。';approve.disabled=false;}
+ };
+ dialog.append(form);dialog.addEventListener('close',()=>dialog.remove());document.body.append(dialog);dialog.showModal();
+}

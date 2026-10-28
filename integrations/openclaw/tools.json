@@ -1,5 +1,76 @@
 [
   {
+    "name": "phone_start",
+    "description": "Start or renew ONE user-authorized whole task. Idle phone is selected atomically; no manual queue clicks. Supply the current user wording, unique authorization_id, total call and outgoing-attempt budgets. Reuse task_id to continue existing work. Repeating the same request returns its receipt, never reactivates revoked control. Then phone_wait and observe. Does not start an AI model.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "instruction": {
+          "type": "string"
+        },
+        "task_id": {
+          "type": "string"
+        },
+        "user_authorization": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "authorization_id": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 100
+        },
+        "max_calls": {
+          "type": "integer",
+          "minimum": 2,
+          "maximum": 100000
+        },
+        "max_deliveries": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000
+        },
+        "duration_seconds": {
+          "type": "integer",
+          "minimum": 60,
+          "maximum": 86400,
+          "default": 28800
+        }
+      },
+      "required": [
+        "user_authorization",
+        "authorization_id",
+        "max_calls",
+        "max_deliveries"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "phone_session",
+    "description": "Compact status for this client only: task IDs, progress, remaining budget, pending send and blocker. No screen contents or full historic queue.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "phone_heartbeat",
+    "description": "Renew an existing valid lease without consuming task calls. Never grants control. Use while actively working, not to hold the phone for a stopped assistant.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "phone_status",
     "description": "Read connection, ownership, specific waiting reasons and capability availability. Does not read screen contents.",
     "inputSchema": {
@@ -32,6 +103,47 @@
       "required": [
         "title",
         "instruction"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "phone_request_control",
+    "description": "Request control ONLY after a new direct user instruction in this conversation. Bind it to your own head task and fresh status generation. Supply the user wording and a unique authorization ID once; never automatically retry after human takeover. Then phone_wait and observe. This is an attestation by the trusted assistant, not independent proof of consent.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "task_id": {
+          "type": "string"
+        },
+        "expected_generation": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "user_authorization": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "authorization_id": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 100
+        },
+        "expected_head": {
+          "type": "string"
+        },
+        "queue_switch_authorization": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        }
+      },
+      "required": [
+        "task_id",
+        "expected_generation",
+        "user_authorization",
+        "authorization_id"
       ],
       "additionalProperties": false
     }
@@ -117,6 +229,20 @@
         "next_action": {
           "type": "string"
         },
+        "input_kind": {
+          "type": "string",
+          "enum": [
+            "navigation",
+            "send"
+          ],
+          "description": "Required for long tasks; accurately declare every outgoing send."
+        },
+        "delivery_key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160,
+          "description": "Stable destination key for each outgoing message. Required by the long-task workflow for sends; never replay a used key."
+        },
         "observe": {
           "type": "string",
           "enum": [
@@ -149,6 +275,60 @@
         "observation_id",
         "progress",
         "next_action"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "phone_delivery_confirm",
+    "description": "Verify one pending outgoing message using fresh screen evidence after the send. No uncertain send may be replayed or counted. This records assistant judgment, not independent semantic proof.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "outcome": {
+          "type": "string",
+          "enum": [
+            "delivered",
+            "not_sent"
+          ]
+        },
+        "checks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "criterion": {
+                "type": "string"
+              },
+              "observed": {
+                "type": "string"
+              },
+              "observation_id": {
+                "type": "string"
+              },
+              "passed": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "criterion",
+              "observed",
+              "observation_id",
+              "passed"
+            ],
+            "additionalProperties": false
+          },
+          "minItems": 1,
+          "maxItems": 20
+        }
+      },
+      "required": [
+        "key",
+        "outcome",
+        "checks"
       ],
       "additionalProperties": false
     }

@@ -15,6 +15,20 @@ def main():
     sub = parser.add_subparsers(dest='command', required=True)
     sub.add_parser('serve', help='Run the local console; prints its loopback URL')
     sub.add_parser('status', help='Read the local console state')
+    call = sub.add_parser('call', help='Call any MCP tool with a persistent per-client identity; no custom bridge needed')
+    call.add_argument('--agent', required=True, help='Unique identity per AI conversation')
+    call.add_argument('--name')
+    call.add_argument('tool', help='phone_start, phone_wait, phone_step, etc.; list prints tool schemas')
+    call.add_argument('--json', default='{}', help='Arguments JSON, or @path, or - for stdin')
+    request_control = sub.add_parser('request-control', help='Request control through the same broker after explicit user authorization; never auto-retry')
+    request_control.add_argument('--agent', required=True)
+    request_control.add_argument('--task-id', required=True)
+    request_control.add_argument('--expected-generation', type=int, required=True)
+    request_control.add_argument('--authorization-id', required=True)
+    request_control.add_argument('--user-authorization', required=True)
+    request_control.add_argument('--expected-head')
+    request_control.add_argument('--queue-switch-authorization')
+
     sub.add_parser('open', help='Start the local server if needed and open the console in your browser')
     sub.add_parser('url', help='Start the local server if needed and print its URL without opening a browser')
     desktop = sub.add_parser('install-app', help='Build an independent macOS app window')
@@ -29,6 +43,34 @@ def main():
     mcp.add_argument('--name', help='Display name, e.g. Codex')
     args = parser.parse_args()
     args.state.mkdir(parents=True, exist_ok=True, mode=0o700)
+    if args.command == 'call':
+        from .client import call_tool
+        import sys
+        try:
+            raw = sys.stdin.read() if args.json == '-' else Path(args.json[1:]).read_text() if args.json.startswith('@') else args.json
+            result = asyncio.run(call_tool(args.state, args.agent, args.name or args.agent, args.tool, json.loads(raw)))
+            print(json.dumps(result, ensure_ascii=False))
+        except (RuntimeError, ValueError, OSError) as exc: parser.error(str(exc))
+        return
+    if args.command == 'request-control':
+        import aiohttp
+        async def request():
+            endpoint = json.loads((args.state/'endpoint.json').read_text())
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=65)) as session:
+                async with session.post(endpoint['url']+'/api/request-control',
+                        headers={'X-Phone-Token':endpoint['token']}, json={
+                            'agent':args.agent, 'task_id':args.task_id,
+                            'expected_generation':args.expected_generation,
+                            'authorization_id':args.authorization_id,
+                            'user_authorization':args.user_authorization,
+                            **({'expected_head':args.expected_head, 'queue_switch_authorization':args.queue_switch_authorization} if args.queue_switch_authorization else {})}) as response:
+                    result = await response.json()
+                    if response.status != 200:
+                        raise RuntimeError(result.get('error', 'Control request failed'))
+                    return result
+        try: print(json.dumps(asyncio.run(request()), ensure_ascii=False))
+        except (RuntimeError, ValueError, OSError) as exc: parser.error(str(exc))
+        return
     if args.command in ('setup','doctor'):
         from .setup import configure, doctor
         try:

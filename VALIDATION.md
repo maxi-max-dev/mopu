@@ -1,4 +1,6 @@
-# Validation scope — Mopu 0.14.0
+# Validation scope — Mopu
+
+Current release: [0.19.1 acceptance](docs/VALIDATION-0.19.1.md). The dated entries below preserve earlier validation scope.
 
 ## Mopu rename acceptance — 2026-10-19
 
