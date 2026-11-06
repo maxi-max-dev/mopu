@@ -11,12 +11,12 @@ MAX_GAP = 6
 # Display aliases, not titles scraped from app windows. Unknown apps show package ID.
 APP_NAMES = {
     'com.android.settings':'设置', 'com.android.systemui':'系统界面',
-    'com.android.launcher3':'桌面', 'com.vendor.launcher3':'桌面',
+    'com.android.launcher3':'桌面',
     'com.zui.launcher':'桌面', 'com.google.android.apps.nexuslauncher':'桌面',
     'com.android.deskclock':'时钟', 'com.google.android.deskclock':'时钟',
     'com.android.calculator2':'计算器', 'com.google.android.calculator':'计算器',
     'com.android.dialer':'电话', 'com.google.android.dialer':'电话',
-    'com.vendor.camera5':'相机', 'com.android.camera2':'相机',
+ 'com.android.camera2':'相机',
     'com.tencent.mm':'微信', 'com.tencent.mobileqq':'QQ',
     'com.xingin.xhs':'小红书', 'tv.danmaku.bili':'哔哩哔哩',
     'com.google.android.youtube':'YouTube', 'com.android.chrome':'Chrome',

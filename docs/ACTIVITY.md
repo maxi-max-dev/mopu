@@ -20,7 +20,7 @@ Keyguard field reference: [Android KeyguardServiceDelegate dump](https://android
 
 The connected console owns the existing shared device lock. It discovers input capabilities using read-only `getevent -pl`, reads platform topology where available, excludes known virtual/external devices, and starts a bounded set of `getevent -lt` readers. It never runs `su`, changes permissions, writes kernel input events, reads arbitrary keyboard keys, or kills the shared ADB service.
 
-Some OEMs allow `getevent` while denying `/proc/bus/input/devices` and sysfs topology. In that case direct multitouch devices and named built-in key candidates may be observed for calibration, but their physical provenance is **not** asserted. The current test-device has this limitation. Primary-touch gestures are summarized; multi-finger gestures and meaning inside apps are not reconstructed.
+Some OEMs allow `getevent` while denying `/proc/bus/input/devices` and sysfs topology. In that case direct multitouch devices and named built-in key candidates may be observed for calibration, but their physical provenance is **not** asserted. The current test device has this limitation. Primary-touch gestures are summarized; multi-finger gestures and meaning inside apps are not reconstructed.
 
 A dropped event or dead reader invalidates monitoring. Closing/disconnecting the phone session stops readers. Reconnection re-enumerates nodes; changing the node fingerprint invalidates calibration. USB disconnection or Mac sleep is a coverage gap, not proof of no activity.
 
@@ -55,12 +55,11 @@ Other results are displayed as failed/unknown, not success. The executable must 
 
 ## Complete physical calibration
 
-The local test-device preview is installed with `remote_verified=true`, `physical_verified=false`. Ordinary ADB access, an open reader, synthetic parser tests and absence of remote input in the kernel stream are not a positive physical-input test.
 
 Before enabling alerts, verify real physical touches and every key node included in coverage while the console and Agent are idle; compare remote manual and leased Agent actions; exercise idle notifications, merging, cooldown and reader recovery. Record the actual time, input type, selected node and resulting summarized event. Only then may the owner/maintainer write `activity-validation.json` with the current aggregate node fingerprint, both verification flags true, and an evidence reference. The UI cannot silently promote unverified nodes to verified.
 
 Repeat the physical comparison with the physical panel on and off. A dark panel may also stop touch scanning on a particular phone; an open input reader does not prove that the touchscreen continues reporting touches in that state. Do not advertise coverage of touches that the hardware does not report.
 
-On 2026-10-17 the owner could not physically reach the test-device. Two actual Agent taps and two actual manual-console taps were recorded under their respective sources, with zero device-input records. A single Feishu test was sent and read back; invoking the test again reused its result. **Physical input detection and real external-operation alerts remain pending.** The earlier maintenance automation remains paused.
+On 2026-10-17 the owner could not physically reach the test device. Two actual Agent taps and two actual manual-console taps were recorded under their respective sources, with zero device-input records. A single Feishu test was sent and read back; invoking the test again reused its result. **Physical input detection and real external-operation alerts remain pending.** The earlier maintenance automation remains paused.
 
 On 2026-10-18, after the owner unlocked the device, real Settings/desktop switches and bounded dwell were verified in the native activity sheet. This establishes App-visit metadata, not physical-input provenance; the latter gate remains disabled pending an on-site comparison.
