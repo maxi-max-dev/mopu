@@ -55,7 +55,6 @@ Other results are displayed as failed/unknown, not success. The executable must 
 
 ## Complete physical calibration
 
-The local test device preview is installed with `remote_verified=true`, `physical_verified=false`. Ordinary ADB access, an open reader, synthetic parser tests and absence of remote input in the kernel stream are not a positive physical-input test.
 
 Before enabling alerts, verify real physical touches and every key node included in coverage while the console and Agent are idle; compare remote manual and leased Agent actions; exercise idle notifications, merging, cooldown and reader recovery. Record the actual time, input type, selected node and resulting summarized event. Only then may the owner/maintainer write `activity-validation.json` with the current aggregate node fingerprint, both verification flags true, and an evidence reference. The UI cannot silently promote unverified nodes to verified.
 
