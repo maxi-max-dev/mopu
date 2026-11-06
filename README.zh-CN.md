@@ -101,7 +101,7 @@ Codex / Claude Code 需要原对话仍在执行，或者由你在原对话要求
 
 ## 手机活动记录（0.8 本地预览）
 
-底栏波形小图标打开活动时间线，按人工、助手和待核实的设备输入分类；连续操作合并，飞书提醒设 10 秒合并窗口与 5 分钟冷却。正式外部操作告警要求真机实体输入对照通过。当前 test-device 仅完成远程输入负向对照和单条飞书测试，实体触摸仍待验。配置与检测边界见 [活动记录说明](docs/ACTIVITY.md)。
+底栏波形小图标打开活动时间线，按人工、助手和待核实的设备输入分类；连续操作合并，飞书提醒设 10 秒合并窗口与 5 分钟冷却。正式外部操作告警要求真机实体输入对照通过。当前 test device 仅完成远程输入负向对照和单条飞书测试，实体触摸仍待验。配置与检测边界见 [活动记录说明](docs/ACTIVITY.md)。
 
 0.8.1 本地预览新增 **App 停留**：应用名称/包名、起止观察时间、前台约多久、期间记录的输入次数。不保存页面内容；锁屏、读数中断或断线即停止计时。前台停留不等于持续使用，也不能据此确认操作者。
 
@@ -136,5 +136,3 @@ Codex / Claude Code 需要原对话仍在执行，或者由你在原对话要求
 ## 0.13.0 shopping acceptance (2026-10-18)
 
 `phone_step` adds bounded `settle_ms=400..5000` before the first readback (default400) for observed lazy-loaded screens. It never repeats input; takeover is rechecked before reading. Waiting is not a readiness assertion. Shopping skill guidance now separates SKU, promotion eligibility/stacking, display currency and unknown delivery fees.
-
-Physical test-device: three repeated Xiaohongshu F63 white/quantity1 checks sealed SKU, coupon and shipping stages; all agreed on CNY399−71=328 (approximately AUD71.33), black sold out. Cross-border freight remains unknown, so all three final receipts are unverified. No coupon claim, cart addition, checkout, order or payment. Twelve 3000ms screenshot readbacks (two SKU, ten detail swipes) were inspected; cache/network were uncontrolled, not a general reliability rate. 142 Python and18 JavaScript tests passed;22 installed runtime files match source. Local0.13 only; public release unchanged; OpenClaw files copied without gateway restart.

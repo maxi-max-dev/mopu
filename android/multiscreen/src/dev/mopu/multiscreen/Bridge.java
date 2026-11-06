@@ -1,0 +1,39 @@
+package dev.mopu.multiscreen;
+import android.content.*;import android.database.Cursor;import android.net.Uri;import android.os.Bundle;import android.app.*;import android.view.accessibility.*;import android.graphics.Rect;import org.json.*;import java.util.*;
+public class Bridge extends ContentProvider {
+ static final String PREF="state"; static final String CHANNEL="screens";
+ public boolean onCreate(){return true;}
+ static SharedPreferences prefs(Context c){return c.getSharedPreferences(PREF,0);}
+ static JSONArray screens(Context c)throws Exception{return new JSONArray(prefs(c).getString("screens","[]"));}
+ static boolean blocked(Context c,int d){return prefs(c).getBoolean("pause"+d,false)||(prefs(c).getBoolean("all",false)&&!prefs(c).getBoolean("allow"+d,false));}
+ static void pause(Context c,int d,boolean b){SharedPreferences.Editor e=prefs(c).edit().putBoolean(d<0?"all":"pause"+d,b);if(d>=0)e.putBoolean("allow"+d,!b);else if(b)try{JSONArray a=screens(c);for(int i=0;i<a.length();i++)e.putBoolean("allow"+a.getJSONObject(i).getInt("id"),false);}catch(Exception ex){}e.apply();notifyAll(c);}
+ static void notifyAll(Context c){try{
+  NotificationManager nm=c.getSystemService(NotificationManager.class);nm.createNotificationChannel(new NotificationChannel(CHANNEL,"副屏实验进度",NotificationManager.IMPORTANCE_LOW));
+  JSONArray a=screens(c);for(int i=0;i<a.length();i++){JSONObject x=a.getJSONObject(i);int id=x.getInt("id");
+   Intent in=new Intent(c,Panel.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TOP|Intent.FLAG_ACTIVITY_SINGLE_TOP).putExtra("display",id);PendingIntent pi=PendingIntent.getActivity(c,id,in,PendingIntent.FLAG_CANCEL_CURRENT|PendingIntent.FLAG_IMMUTABLE);
+   String title="副屏 "+id+" / "+x.optString("app");String body=x.optString("step")+" · "+(blocked(c,id)?"已接管":x.optString("status"));
+   nm.notify(id,new Notification.Builder(c,CHANNEL).setSmallIcon(android.R.drawable.ic_menu_view).setContentTitle(title).setContentText(body).setOngoing(true).setOnlyAlertOnce(true).setContentIntent(pi).build());
+  }
+ }catch(Exception e){}}
+ boolean allowed(int d)throws Exception{if(d<=0)return false;JSONArray a=screens(getContext());for(int i=0;i<a.length();i++)if(a.getJSONObject(i).getInt("id")==d)return true;return false;}
+ public Bundle call(String method,String arg,Bundle extra){Bundle out=new Bundle();try{JSONObject r=new JSONObject();
+  if(method.equals("publish")){JSONArray a=new JSONArray(arg);for(int i=0;i<a.length();i++)if(a.getJSONObject(i).getInt("id")<=0)throw new Exception("main screen forbidden");getContext().getSystemService(NotificationManager.class).cancelAll();prefs(getContext()).edit().putString("screens",a.toString()).apply();notifyAll(getContext());r.put("ok",true);}
+  else if(method.equals("status")){r.put("connected",Access.live!=null);r.put("all_paused",prefs(getContext()).getBoolean("all",false));JSONArray a=screens(getContext());for(int i=0;i<a.length();i++){JSONObject x=a.getJSONObject(i);x.put("paused",blocked(getContext(),x.getInt("id")));}r.put("screens",a);}
+  else if(method.equals("clear")){JSONArray a=screens(getContext());NotificationManager nm=getContext().getSystemService(NotificationManager.class);for(int i=0;i<a.length();i++)nm.cancel(a.getJSONObject(i).getInt("id"));prefs(getContext()).edit().putString("screens","[]").apply();r.put("ok",true);}
+  else {JSONObject q=new JSONObject(arg);int d=q.getInt("display");if(!allowed(d))throw new Exception("display not authorized");if(Access.live==null)throw new Exception("service disconnected");
+   List<AccessibilityWindowInfo> windows=Access.live.getWindowsOnAllDisplays().get(d);JSONArray nodes=new JSONArray();List<AccessibilityNodeInfo> refs=new ArrayList<>();
+   if(windows!=null)for(AccessibilityWindowInfo w:windows){AccessibilityNodeInfo root=w.getRoot();if(root!=null)walk(root,nodes,refs,0);}
+   String snapshot=android.util.Base64.encodeToString(java.security.MessageDigest.getInstance("SHA-256").digest(nodes.toString().getBytes("UTF-8")),android.util.Base64.NO_WRAP);
+   if(method.equals("tree")){r.put("display",d);r.put("nodes",nodes);r.put("snapshot",snapshot);}
+   else if(method.equals("action")){if(blocked(getContext(),d))throw new Exception("human takeover");String text=q.optString("text","");String view=q.optString("view","");String desc=q.optString("description","");List<AccessibilityNodeInfo> matches=new ArrayList<>();for(AccessibilityNodeInfo n:refs)if((!text.isEmpty()&&text.contentEquals(n.getText()==null?"":n.getText()))||(!view.isEmpty()&&view.equals(n.getViewIdResourceName()))||(!desc.isEmpty()&&desc.contentEquals(n.getContentDescription()==null?"":n.getContentDescription())))matches.add(n);
+    if(q.has("target")){JSONObject expected=q.getJSONObject("target");matches.clear();for(int i=0;i<nodes.length();i++){JSONObject actual=nodes.getJSONObject(i);boolean same=true;Iterator<String> keys=expected.keys();while(keys.hasNext()){String key=keys.next();if(!String.valueOf(expected.opt(key)).equals(String.valueOf(actual.opt(key)))){same=false;break;}}if(same)matches.add(refs.get(i));}}
+    else if(q.has("node")){if(!snapshot.equals(q.getString("snapshot")))throw new Exception("stale observation");int idx=q.getInt("node");if(idx<0||idx>=refs.size())throw new Exception("invalid node");matches.clear();matches.add(refs.get(idx));}
+    if(matches.size()!=1)throw new Exception("target count "+matches.size());AccessibilityNodeInfo n=matches.get(0);if(!n.isEnabled()||!n.isVisibleToUser()||n.isPassword())throw new Exception("disabled hidden or password node");String action=q.getString("action");boolean ok;
+    if(action.equals("click")){while(n!=null&&!n.isClickable())n=n.getParent();if(n==null)throw new Exception("not clickable");ok=n.performAction(AccessibilityNodeInfo.ACTION_CLICK);}
+    else if(action.equals("text")){Bundle b=new Bundle();b.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE,q.getString("value"));ok=n.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT,b);}else if(action.equals("scroll_forward")){ok=n.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD);}else if(action.equals("scroll_backward")){ok=n.performAction(AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD);}else if(action.equals("ime_enter")){ok=n.performAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_IME_ENTER.getId());}else throw new Exception("unknown action");r.put("dispatched",ok);r.put("verify_required",true);
+   }else throw new Exception("unknown method");
+  }out.putString("result",r.toString());
+ }catch(Exception e){out.putString("error",e.toString());}return out;}
+ void walk(AccessibilityNodeInfo n,JSONArray arr,List<AccessibilityNodeInfo> refs,int depth)throws Exception{if(depth>40||refs.size()>500)return;Rect b=new Rect();n.getBoundsInScreen(b);JSONObject j=new JSONObject();j.put("node",refs.size());j.put("package",String.valueOf(n.getPackageName()));j.put("class",String.valueOf(n.getClassName()));j.put("enabled",n.isEnabled());j.put("visible",n.isVisibleToUser());j.put("scrollable",n.isScrollable());j.put("password",n.isPassword());j.put("text",n.isPassword()?"[redacted]":String.valueOf(n.getText()));j.put("view",n.getViewIdResourceName());j.put("description",String.valueOf(n.getContentDescription()));j.put("clickable",n.isClickable());j.put("editable",n.isEditable());j.put("bounds",new JSONArray(new int[]{b.left,b.top,b.right,b.bottom}));arr.put(j);refs.add(n);for(int i=0;i<n.getChildCount();i++){AccessibilityNodeInfo child=n.getChild(i);if(child!=null)walk(child,arr,refs,depth+1);}}
+ public Cursor query(Uri u,String[] p,String s,String[] a,String o){return null;}public String getType(Uri u){return null;}public Uri insert(Uri u,ContentValues v){return null;}public int delete(Uri u,String s,String[] a){return 0;}public int update(Uri u,ContentValues v,String s,String[] a){return 0;}
+}

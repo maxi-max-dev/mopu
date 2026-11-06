@@ -160,13 +160,11 @@ The 0.8.1 local preview adds an **App visits** tab: app name/package, first/last
 
 `phone_step` validates a fresh screen observation and lease, checkpoints, dispatches exactly one input, then returns fresh text or a screenshot. Optional `expected_text` is a literal diagnostic, not semantic completion. No automatic input replay. Text now uses the existing console scrcpy clipboard/paste channel; submit remains separate.
 
-Physical test-device acceptance: calculator result 460, persisted vendor note, and Chrome example.com → IANA navigation/read. Amap route task stopped at first-run terms and was not completed. New Chinese title paste and reopen passed. 121 Python and 18 JavaScript checks passed. Custom views still need screenshots; the queue does not launch a model. OpenClaw files updated, live gateway reload not verified.
 
 ## 0.11.0: cross-app stage receipts
 
 Declare `required_milestones` when submitting a workflow. `phone_milestone` seals fresh passed evidence before leaving an app, using immutable stage keys. Historic stages survive takeover/reclaim but do not replace fresh final verification. Missing declared stages prevent verified completion. Retrying preserves old attempts and resets the current stage set. The console displays stage receipts. `phone_step` supports up to three read attempts with an expected text condition; only reads repeat, never input.
 
-Three physical test-device workflows completed: amend an existing budget via calculator (529); archive an official browser source in a Chinese note and reopen; read storage, calculate 217 GB, survive takeover/reclaim, save and reopen. The latter two used 0.11 contracts. 130 Python and 18 JavaScript tests passed. OpenClaw files updated, active gateway reload unverified. This is bounded acceptance, not an all-app reliability rate.
 
 ## Fresh target clicks (0.12)
 
@@ -178,4 +176,25 @@ Local shopping acceptance: three comparison-to-calendar runs and three official-
 
 `phone_step` adds bounded `settle_ms=400..5000` before the first readback (default400) for observed lazy-loaded screens. It never repeats input; takeover is rechecked before reading. Waiting is not a readiness assertion. Shopping skill guidance now separates SKU, promotion eligibility/stacking, display currency and unknown delivery fees.
 
-Physical test-device: three repeated Xiaohongshu F63 white/quantity1 checks sealed SKU, coupon and shipping stages; all agreed on CNY399−71=328 (approximately AUD71.33), black sold out. Cross-border freight remains unknown, so all three final receipts are unverified. No coupon claim, cart addition, checkout, order or payment. Twelve 3000ms screenshot readbacks (two SKU, ten detail swipes) were inspected; cache/network were uncontrolled, not a general reliability rate. 142 Python and18 JavaScript tests passed;22 installed runtime files match source. Local0.13 only; public release unchanged; OpenClaw files copied without gateway restart.
+
+## Multiscreen (experimental)
+
+An explicit task can open up to two secondary displays, observe each app, choose
+one action at a time, and verify the result. Node-based interaction is combined
+with screenshot reading; one blocked screen does not erase another's result.
+This requires a USB-connected Android device and a computer with `adb`, scrcpy,
+`ffmpeg`, and the model CLI. It is not a phone-only background assistant.
+
+Some controls, login/consent screens and device-specific behavior are unsupported.
+Repeated model calls have significant latency and context cost. Simultaneous
+human use of the primary screen, calls and physical USB recovery need separate
+validation; do not infer them from software checks. No sending, payment,
+deletion, root, global display changes or primary-screen worker input is allowed.
+
+To enable, build and sign the source-only companion, grant its accessibility and
+notification access on the device, and invoke `mopu-multiscreen` for an explicitly
+authorized task. Existing integrations use the background execution mode and
+`phone_multiscreen`. To roll back, stop the job and service, restore source while
+preserving task history, and disable the companion if desired. Never rewind the
+queue or clear unknown external outcomes. See [setup, evidence boundaries and
+rollback](docs/MULTISCREEN.md).

@@ -1,4 +1,4 @@
-"""Agent-neutral MCP adapter. It never starts or selects a model."""
+"""Agent-neutral queue adapter; multiscreen is an explicit model-execution opt-in."""
 import asyncio
 import contextlib
 import json
@@ -39,6 +39,10 @@ TOOLS = [
     {'name':'phone_finish','description':'Save results and release the phone. To mark verified, supply checks referring to broker-issued phone_harness_observation IDs from fresh reads after the last input. Otherwise the result is saved as unverified. Never use tool acknowledgements as proof. Store only minimal non-sensitive readbacks.',
      'inputSchema':schema({'result':TEXT,'blocked':{'type':'boolean','default':False},'required_milestones':{'type':'array','items':TEXT,'maxItems':20},'checks':{'type':'array','items':CHECK,'maxItems':20},'unresolved':{'type':'array','items':TEXT,'maxItems':20}}, ['result'])},
 ]
+
+
+TOOLS[0]['inputSchema']['properties']['execution_mode']={'type':'string','enum':['main','background'],'default':'main'}
+TOOLS.append({'name':'phone_multiscreen','description':'Explicitly start, inspect or stop a lease-scoped experimental background task. This opt-in operation invokes the configured model; ordinary queue operations do not.', 'inputSchema':schema({'operation':{'type':'string','enum':['start','status','stop']},'instruction':TEXT,'job_id':TEXT},['operation'])})
 
 
 class Client:

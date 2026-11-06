@@ -5,6 +5,16 @@ description: Operate an authorized USB Android phone through the shared Mopu MCP
 
 # Mopu
 
+## Experimental multiscreen opt-in
+
+The ordinary queue still does not start a model. The explicit `phone_multiscreen`
+operation is an exception: it starts a bounded model-assisted secondary-display
+job under the caller's existing background task lease. Use only for an authorized
+task, and follow [the multiscreen guide](../../../../docs/MULTISCREEN.md) for setup,
+safety limits and rollback. This does not grant independent control or permit
+external actions. Stop on revocation; never open another control route.
+
+
 ## Whole-task authorization (0.19, supersedes the per-stage workflow for new tasks)
 
 Use `phone_session` then `phone_start` for a current user-authorized task. Provide title/instruction or the original task_id, the user wording and unique authorization_id, whole-task max_calls and max_deliveries (0 unless sends are authorized). Duration defaults to 8 hours, max 24 hours. The broker selects an idle phone and the task atomically; follow with phone_wait, phone_tools and a fresh screen. No user priority/handback clicks and no 200-call renewal cycle. Do not preempt an active task.
@@ -59,7 +69,7 @@ For labelled controls, prefer phone_step target with exact id/text/label (and op
 
 For shopping comparisons, verify product variant/model, retailer, currency, displayed price and capture time from each actual page. Keep shipping, location-dependent stock and unavailable price explicitly unknown. Search snippets are discovery, not current-price proof. Before saving a follow-up or downloading a file, inspect the destination for the same task marker/file and reuse it; then reopen it. Prefer persistent download lists over transient completion toasts. Repeated runs must reread sources and prove output count, not duplicate saved objects.
 
-For calendar follow-ups, choose date/time and all-day mode BEFORE configuring reminders, then verify the final saved detail view. On the tested vendor calendar, toggling all-day resets the reminder and disables its editor; for a no-alert test use a timed local event and then select no reminder. Do not assume the draft setting survived another field change. This is a device-specific observation, not a universal Android rule. For download tasks, verify actual rendered PDF content using a screenshot when the accessibility tree exposes only the filename.
+For calendar follow-ups, choose date/time and all-day mode BEFORE configuring reminders, then verify the final saved detail view. On the tested tested calendar, toggling all-day resets the reminder and disables its editor; for a no-alert test use a timed local event and then select no reminder. Do not assume the draft setting survived another field change. This is a device-specific observation, not a universal Android rule. For download tasks, verify actual rendered PDF content using a screenshot when the accessibility tree exposes only the filename.
 
 ## Shopping and lazy-loaded detail pages (0.13)
 

@@ -20,6 +20,8 @@ from .capabilities import catalog, READS
 WEB = Path(__file__).parent / 'web'
 
 
+from .multiscreen import MultiscreenJobs
+
 class Console:
     def __init__(self, config, state):
         self.state_dir = Path(state)
@@ -28,6 +30,8 @@ class Console:
         self.device = Device(config, self.state_dir)
         self.transfers = Transfers(self.state_dir, self.device)
         self.transfer_jobs = TransferJobs(self)
+        from .multiscreen_agent import Backend
+        self.multiscreen_jobs = MultiscreenJobs(self, lambda job, guard: Backend(self,job,guard))
         self.device.on_disconnect = self.disconnected
         self.op = asyncio.Lock()
         self.transition = asyncio.Lock()
@@ -74,7 +78,7 @@ class Console:
         for task in queue['tasks']:
             online = time.monotonic()-self.agents.get(task['agent'], {}).get('seen', 0) < 90
             task['wait'] = explanation(task, queue['owner'], self.device.connected, head['id'] if head else None, online)
-        return {**queue, 'server_version':__version__, 'file_transfer':{'protocol':1,'continuous':True,'chunk_bytes':4194304,'lease_required':True}, 'capabilities':catalog(self.device.connected, queue['owner'], self.available_tools, self.tools_checked_at), 'activity':self.activity.snapshot(self.device.connected), 'device': {'connected': self.device.connected,
+        return {**queue, 'multiscreen_jobs':[self.multiscreen_jobs.public(j) for j in list(self.multiscreen_jobs.jobs.values())[-3:]], 'server_version':__version__, 'file_transfer':{'protocol':1,'continuous':True,'chunk_bytes':4194304,'lease_required':True}, 'capabilities':catalog(self.device.connected, queue['owner'], self.available_tools, self.tools_checked_at), 'activity':self.activity.snapshot(self.device.connected), 'device': {'connected': self.device.connected, 'background_mode':self.device.background_mode,
             'error': self.device.error, 'telemetry': telemetry, 'health': self.device.health_snapshot(), 'width': self.device.width,
             'height': self.device.height, 'geometry_note':'width/height describe the video stream only. Agent coordinates use mobile_get_screen_size and fresh element bounds; these can be larger.', 'frame_age': round(time.monotonic()-self.device.last_packet, 1) if self.device.last_packet else None},
             'agents': self.known_agents(),
@@ -107,6 +111,8 @@ class Console:
             raise PermissionError('助手连接已失效')
         agent['seen'] = time.monotonic()
         action = payload.get('action')
+        if action == 'start' and payload.get('execution_mode','main') not in ('main','background'):
+            raise ValueError('execution_mode must be main or background')
         q = self.queue
         token = payload.get('lease', '')
         if action == 'submit':
@@ -164,7 +170,9 @@ class Console:
                 try:
                     await self.device.clear_actions()
                     async with self.op:
-                        if not self.device.connected: await self.device.connect()
+                        mode=payload.get('execution_mode',task.get('execution_mode','main'))
+                        await self.device.prepare_mode(mode)
+                        task['execution_mode']=mode
                         await self.device.release_touch()
                         self.device.observed_at = 0
                         q.owner = 'agent'
@@ -259,6 +267,11 @@ class Console:
             own = next((t for t in self.snapshot()['tasks'] if t['agent']==name and not t.get('deleted_at') and t['status'] in ('queued','paused','running')), None)
             return {'waiting': True, 'reason': own.get('wait') if own else {'code':'no_task','label':'没有本对话待执行任务','next_action':'无须继续等待'}, 'owner': q.owner, 'head': q.head(), 'instruction': '等待人交回控制权或前序任务结束；可再次调用 phone_wait。不要另开控制通道。'}
         q.check(name, token)
+        if action == 'multiscreen':
+            task=q.check(name,token)
+            q.ensure_budget(task,0)
+            if task.get('pending_delivery'): raise PermissionError('Pending external action must be reconciled first')
+            return await self.multiscreen_jobs.handle(payload,task,name,token)
         if action == 'heartbeat':
             task = q.check(name, token)
             q.ensure_budget(task, 0)
@@ -488,6 +501,11 @@ class Console:
         if action == 'activity_notify_test':
             await self.activity.test_notification()
             return self.snapshot()
+        if action == 'mode_main':
+            if q.lease or q.current: raise PermissionError('Finish the background task before restoring the primary stream')
+            async with self.transition, self.op:
+                await self.device.prepare_mode('main')
+            return self.snapshot()
         if action == 'connect':
             self.available_tools = None
             self.tools_checked_at = None
@@ -632,7 +650,7 @@ class Console:
                 except Exception:
                     self.device.telemetry.update(quiet=None, haptic_disabled=None)
                     self.device.health.pop('settings',None)
-            if self.closed_view_at and not self.device.watchers and time.monotonic()-self.closed_view_at > 12 and self.queue.data['settings']['close_pauses']:
+            if self.closed_view_at and not self.device.background_mode and not self.device.watchers and time.monotonic()-self.closed_view_at > 12 and self.queue.data['settings']['close_pauses']:
                 self.closed_view_at = None
                 self.wanted, self.retry_at = False, None
                 await self.transition_to('paused', '控制台已关闭，自动暂停；重新打开后手动继续')
@@ -776,6 +794,8 @@ async def serve(config, state_dir):
     app.router.add_post('/api/control', control)
     app.router.add_post('/api/agent', agent)
     app.router.add_post('/api/request-control', authorized_control)
+    from .multiscreen_backend import view as multiscreen_view
+    app.router.add_route('*','/ms/{key}/{operation}/{display}',multiscreen_view)
     app.router.add_get('/stream', stream)
     runner = web.AppRunner(app, access_log=None)
     await runner.setup()
@@ -806,6 +826,7 @@ async def serve(config, state_dir):
         notifications.cancel()
         await asyncio.gather(c.monitor, panel_monitor, activity_monitor, input_monitor, app_monitor, notifications, return_exceptions=True)
         c.queue.invalidate('服务结束，等待手动恢复')
+        await c.multiscreen_jobs.close()
         await c.transfer_jobs.close()
         async with c.op: await c.device.close()
         await asyncio.gather(*(ws.close() for ws in list(c.device.watchers)), return_exceptions=True)

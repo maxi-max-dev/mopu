@@ -43,6 +43,7 @@ function renderIntegration(){const online=(state?.agents||[]).filter(a=>a.online
 $('integrationCheck').onclick=async()=>{try{state=await api('state');renderIntegration();}catch(e){$('integrationStatus').textContent=e.message;}};
 for(const [button,source]of [['copyMcp','mcpCommand'],['copyCli','cliCommand']])$(button).onclick=async()=>{try{await navigator.clipboard.writeText($(source).textContent);toast('命令已复制；请替换为此聊天的独立标识。');}catch(e){toast('复制不可用，请选中上方命令手动复制。');}};
 for (const action of ['connect','takeover','release','pause','reconnect','rotate']) $(action).onclick=()=>control(action);
+$('modeMain').onclick=()=>control('mode_main');
 $('panelPower').onclick=async()=>{if(controlBusy||panelBusy)return;const on=panelState()==='off';panelBusy=true;renderPanel();try{await control('panel_power',{on});}finally{panelBusy=false;renderPanel();}};
 $('disconnect').onclick=async()=>{await control('disconnect');$('settings').close();};
 $('addOpen').onclick=()=>{
@@ -55,11 +56,11 @@ function updateNewTaskHint(){const a=state.agents.find(x=>x.id===$('agentSelect'
 $('agentSelect').onchange=updateNewTaskHint;
 $('newTaskForm').onsubmit=async event=>{event.preventDefault();try{state=await api('control',{action:'add',title:$('taskTitle').value,instruction:$('taskInstruction').value,agent:$('agentSelect').value});$('newTask').close();$('newTaskForm').reset();taskView='queue';searchText='';$('taskSearch').value='';selectedTasks.clear();taskPane(true);render();toast('任务已加入队列，等待原助手领取。');}catch(error){toast(error.message);}};
 function send(data){if(socket?.readyState!==WebSocket.OPEN){toast('视频连接未就绪，请重新连接。');return false;}socket.send(JSON.stringify({...data,generation:state?.generation}));return true;}
-function hasControl(){return state?.owner==='human'&&state?.device.connected;}
+function hasControl(){return state?.owner==='human'&&state?.device.connected&&!state?.device.background_mode;}
 function panelState(){const t=state?.device.telemetry;if(!state?.device.connected||performance.now()-stateReceivedAt>3500||t?.panel_age==null||t.panel_age+(performance.now()-stateReceivedAt)/1000>5)return 'unknown';return ['on','off'].includes(t.panel)?t.panel:'unknown';}
 function renderPanel(){
  const panel=panelState(), button=$('panelPower'), label={on:'已亮屏',off:'已息屏',unknown:'待确认'}[panel];
- button.className='panel-power '+panel+(panelBusy?' pending':'');button.disabled=!state?.device.connected||panelBusy;
+ button.className='panel-power '+panel+(panelBusy?' pending':'');button.disabled=!state?.device.connected||!!state?.device.background_mode||panelBusy;
  $('panelLabel').textContent=panelBusy?'核验中':label;$('panelAction').textContent=panel==='off'?'点击亮屏':'点击息屏';
  button.setAttribute('aria-label','实体屏幕'+label+'，'+$('panelAction').textContent);
  if(panel==='unknown')button.removeAttribute('aria-pressed');else button.setAttribute('aria-pressed',String(panel==='on'));
@@ -158,7 +159,7 @@ function renderHealth(){
  if(active.length&&activityText!==previousActivity)toast(activityText);
  previousActivity=activityText;
  $('healthTitle').textContent=healthNames[healthTab];
- $('applyQuiet').hidden=healthTab!=='audio';$('applyQuiet').disabled=!state?.device.connected||controlBusy;
+ $('applyQuiet').hidden=healthTab!=='audio';$('applyQuiet').disabled=!state?.device.connected||!!state?.device.background_mode||controlBusy;
  const rows=[];let note='';
  if(healthTab==='audio'){
   rows.push(healthRow('基础静音',basic?'已读回确认':audio.fresh?'需检查或恢复':'待核验',basic?'good':'warning'));
@@ -392,6 +393,11 @@ function renderQueue(){
 }
 
 function render(){
+ $('modeMain').hidden=!state?.device.background_mode;
+ $('modeMain').disabled=!!state?.lease_active||!!state?.current;
+ $('backgroundModeNote').hidden=!state?.device.background_mode;
+ const msRows=$('multiscreenProgress');msRows.replaceChildren();
+ for(const job of state?.multiscreen_jobs||[]){if(job.finished_at)continue;for(const row of job.screens||[]){msRows.append(element('div','note',`副屏 ${row.display} / ${row.app||''} / ${row.step||''} / ${row.status||job.status}`));}}
  renderInputActivity();
  if(!state)return;$('runtimeVersion').textContent='v'+(state.server_version||'版本待核验');$('closePauses').checked=state.settings.close_pauses;const connected=state.device.connected, owner=state.owner, telemetry=state.device.telemetry||{}, current=state.tasks.find(task=>task.id===state.current), head=state.tasks.find(task=>!task.deleted_at&&!task.user_held&&['queued','paused','running'].includes(task.status));
  if(!connected)actionOverlay.clear();
@@ -407,13 +413,13 @@ function render(){
  $('release').title='只交出手机控制权，不会启动AI；一次授权任务可由原聊天调用phone_start直接开始';
  $('connect').hidden=connected;$('takeover').hidden=!connected||owner==='human';$('release').hidden=!connected||owner==='agent';$('pause').hidden=!connected||owner==='human'||owner==='paused';
  for(const button of document.querySelectorAll('[data-key],#textOpen,#rotate'))button.disabled=!hasControl();
- $('quiet').disabled=!connected;
+ $('quiet').disabled=!connected||!!state.device.background_mode;
  canvas.classList.toggle('controllable',hasControl());
  const count=state.tasks.filter(t=>!t.deleted_at&&['queued','paused','running','blocked','unverified'].includes(t.status)).length;$('queueCount').textContent=count;$('queueCount').hidden=!count;
  $('orientationLabel').textContent=state.device.width>state.device.height?'转竖屏':'转横屏';
  renderPanel();
  renderHealth();
- if(!connected){canvas.hidden=true;$('emptyScreen').hidden=false;$('stageLabel').hidden=true;rendered=0;}
+ if(!connected||state.device.background_mode){canvas.hidden=true;$('emptyScreen').hidden=false;$('stageLabel').hidden=!state.device.background_mode;$('stageLabel').textContent='副屏后台模式：主屏由你使用；在手机副屏面板查看或接管任务。';rendered=0;}
  else if(!rendered){$('stageLabel').hidden=false;$('stageLabel').textContent='正在接收实时画面…';}
  $('events').replaceChildren(...state.events.slice(-12).reverse().map(event=>{const row=element('div');row.append(element('time','',new Date(event.at).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})),document.createTextNode(event.message));return row;}));
  renderQueue();
@@ -427,6 +433,7 @@ function configure(bytes){
  const codec='avc1.'+Array.from(bytes.slice(offset+1,offset+4),v=>v.toString(16).padStart(2,'0')).join('');
  resetDecoder();config=bytes;
  decoder=new VideoDecoder({output:frame=>{
+  if(state?.device.background_mode){frame.close();return;}
   if(canvas.width!==frame.displayWidth||canvas.height!==frame.displayHeight){actionOverlay.clear();canvas.width=frame.displayWidth;canvas.height=frame.displayHeight;fitVideo();}
   context.drawImage(frame,0,0);frame.close();rendered++;frameWindow++;lastFrame=performance.now();canvas.dataset.frames=String(rendered);canvas.hidden=false;$('emptyScreen').hidden=true;$('stageLabel').hidden=true;
  },error:error=>{toast('视频解码失败：'+error.message);$('stageLabel').hidden=false;$('stageLabel').textContent='视频解码失败，请重新连接';}});

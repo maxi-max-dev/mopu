@@ -6,7 +6,7 @@ import {eligible} from './resume.js';
 const ctx={agentId:'main',sessionId:'conversation-A'};
 function fixture() {
   const calls=[]; let fail=false;
-  const run=createBridge({}, {load:async()=>JSON.stringify({url:'http://127.0.0.1:18796',token:'test'}),fetch:async(_url,options)=>{
+  const run=createBridge({}, {load:async()=>JSON.stringify({url:'http://127.0.0.1:0',token:'test'}),fetch:async(_url,options)=>{
     const p=JSON.parse(options.body); calls.push(p);
     if(fail && p.action==='call') throw Error('uncertain timeout');
     return {ok:true,json:async()=>p.action==='register'?{agent:p.agent,agent_token:p.agent}:p.action==='wait'?{lease:'lease-'+p.agent,task:{id:'t'}}:p.action==='call'?{content:[{type:'text',text:'observed'}]}:{saved:true}};
@@ -52,7 +52,7 @@ test('resume service waits for idle, uses host admission, and renews allowance o
   const dir=await fs.mkdtemp(path.join(os.tmpdir(),'phone-resume-test-'));
   let tick,active=true,run,admitted=false;
   const identity=identityFor(ctx), state={owner:'human',generation:1,device:{connected:true},lease_active:false,tasks:[{id:'task',agent:identity,status:'queued'}]};
-  await fs.writeFile(path.join(dir,'endpoint.json'),JSON.stringify({url:'http://127.0.0.1:18796',token:'test',pid:1}));
+  await fs.writeFile(path.join(dir,'endpoint.json'),JSON.stringify({url:'http://127.0.0.1:0',token:'test',pid:1}));
   const api={pluginConfig:{stateDir:dir,resumeOnRelease:true},logger:{warn:m=>assert.fail(m)},runtime:{config:{current:()=>({})},agent:{
     resolveAgentWorkspaceDir:()=>dir,runEmbeddedAgent:async p=>{run=p;},session:{getSessionEntry:()=>({sessionId:ctx.sessionId}),resolveStorePath:()=>dir,
     runWithWorkAdmission:async(p,fn)=>{assert.equal(p.sessionKey,'original');admitted=true;return fn(new AbortController().signal);}}}}};
