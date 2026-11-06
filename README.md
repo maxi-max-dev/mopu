@@ -198,3 +198,5 @@ authorized task. Existing integrations use the background execution mode and
 preserving task history, and disable the companion if desired. Never rewind the
 queue or clear unknown external outcomes. See [setup, evidence boundaries and
 rollback](docs/MULTISCREEN.md).
+
+The computer console includes a **多屏** view with side-by-side previews and per-screen takeover/return. See the [MCP calling guide](docs/MULTISCREEN_MCP.md) for tools, ownership and limitations.

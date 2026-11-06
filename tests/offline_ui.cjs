@@ -18,7 +18,7 @@ const fs=require('node:fs'),path=require('node:path'),assert=require('node:asser
    return route.fulfill({json:state});
   }
   const f=u.pathname==='/'?'index.html':path.basename(u.pathname);
-  assert.ok(['index.html','app.js','actions.js','style.css'].includes(f));
+  assert.ok(['index.html','app.js','actions.js','multiscreen.js','style.css'].includes(f));
   await route.fulfill({body:fs.readFileSync(path.join(root,f)),contentType:f.endsWith('.js')?'text/javascript':f.endsWith('.css')?'text/css':'text/html'});
  });
  await page.goto('http://mopu.test/');await page.getByRole('button',{name:'展开任务队列',exact:true}).click();

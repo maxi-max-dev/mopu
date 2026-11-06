@@ -791,6 +791,8 @@ async def serve(config, state_dir):
     app.router.add_get('/', home)
     app.router.add_static('/static/', WEB)
     app.router.add_get('/api/state', state)
+    from .multiscreen_console import console_view
+    app.router.add_route('*','/api/multiscreen/{job}/{operation}/{display}',console_view)
     app.router.add_post('/api/control', control)
     app.router.add_post('/api/agent', agent)
     app.router.add_post('/api/request-control', authorized_control)

@@ -483,7 +483,7 @@
   },
   {
     "name": "phone_multiscreen",
-    "description": "Explicitly start, inspect or stop a lease-scoped experimental background task. This opt-in operation invokes the configured model; ordinary queue operations do not.",
+    "description": "Explicit model-backed multiscreen start/status/stop, owned-display list and yield-only single/all takeover. Handback is human-only; parent lease revocation stops all work.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -492,7 +492,10 @@
           "enum": [
             "start",
             "status",
-            "stop"
+            "stop",
+            "list",
+            "takeover",
+            "takeover_all"
           ]
         },
         "instruction": {
@@ -500,6 +503,10 @@
         },
         "job_id": {
           "type": "string"
+        },
+        "display": {
+          "type": "integer",
+          "minimum": 1
         }
       },
       "required": [

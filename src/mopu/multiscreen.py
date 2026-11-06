@@ -38,12 +38,44 @@ class MultiscreenJobs:
     def save(self, job):
         atomic(self.c.state_dir/'multiscreen'/f"{job['id']}.json", self.public(job))
 
+    async def inventory(self, job):
+        self.guard(job)
+        backend=job.get('_backend')
+        screens=[]
+        if backend and backend.entered:
+            state=await backend.bridge('status')
+            for row in state['screens']:
+                if row['id'] not in {s.display for s in backend.screens}:continue
+                screens.append({k:row.get(k) for k in ('id','app','step','status')} | {
+                    'display':row['id'],'paused':bool(row.get('paused') or row['id'] in job.get('_held',set()) or (job.get('_hold_all') and row['id'] not in job.get('_returned',set()))),
+                    'phone_paused':bool(row.get('paused'))})
+        return {'primary':{'display':0,'status':'human-owned'},'screens':screens,'job_id':job['id']}
+
+    async def hold(self, job, display, paused):
+        async with self.c.op:
+            self.guard(job)
+            ids={s.display for s in job['_backend'].screens}
+            if display != -1 and display not in ids:raise ValueError('Unknown owned display')
+            held=job.setdefault('_held',set())
+            targets=ids if display == -1 else {display}
+            returned=job.setdefault('_returned',set())
+            if display == -1:job['_hold_all']=paused;returned.clear()
+            if paused:held.update(targets);returned.difference_update(targets)
+            else:held.difference_update(targets);returned.update(targets)
+            job['_human_epoch']=job.get('_human_epoch',0)+1
+        return await self.inventory(job)
+
     async def handle(self, payload, task, agent, token):
         op = payload.get('operation')
-        if op in ('status','stop'):
+        if op == 'list':
+            jobs=[j for j in self.jobs.values() if j['task_id']==task['id'] and j['agent']==agent and not j.get('finished_at')]
+            return {'primary':{'display':0,'status':'human-owned'},'jobs':[await self.inventory(j) for j in jobs]}
+        if op in ('status','stop','takeover','takeover_all'):
             job = self.jobs.get(payload.get('job_id'))
             if not job or job['task_id'] != task['id'] or job['agent'] != agent:
                 raise PermissionError('不是当前任务的副屏')
+            if op in ('takeover','takeover_all'):
+                return await self.hold(job,-1 if op=='takeover_all' else payload.get('display'),True)
             if op == 'stop' and not job.get('finished_at'):
                 job['status']='stopping'
                 job['_worker'].cancel()

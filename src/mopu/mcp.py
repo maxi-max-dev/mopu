@@ -42,7 +42,7 @@ TOOLS = [
 
 
 TOOLS[0]['inputSchema']['properties']['execution_mode']={'type':'string','enum':['main','background'],'default':'main'}
-TOOLS.append({'name':'phone_multiscreen','description':'Explicitly start, inspect or stop a lease-scoped experimental background task. This opt-in operation invokes the configured model; ordinary queue operations do not.', 'inputSchema':schema({'operation':{'type':'string','enum':['start','status','stop']},'instruction':TEXT,'job_id':TEXT},['operation'])})
+TOOLS.append({'name':'phone_multiscreen','description':'Explicit model-backed multiscreen start/status/stop, owned-display list and yield-only single/all takeover. Handback is human-only; parent lease revocation stops all work.', 'inputSchema':schema({'operation':{'type':'string','enum':['start','status','stop','list','takeover','takeover_all']},'instruction':TEXT,'job_id':TEXT,'display':{'type':'integer','minimum':1}},['operation'])})
 
 
 class Client:
