@@ -175,3 +175,28 @@ Local shopping acceptance: three comparison-to-calendar runs and three official-
 ## 0.13.0 shopping acceptance (2026-10-18)
 
 `phone_step` adds bounded `settle_ms=400..5000` before the first readback (default400) for observed lazy-loaded screens. It never repeats input; takeover is rechecked before reading. Waiting is not a readiness assertion. Shopping skill guidance now separates SKU, promotion eligibility/stacking, display currency and unknown delivery fees.
+
+
+## Multiscreen (experimental)
+
+An explicit task can open up to two secondary displays, observe each app, choose
+one action at a time, and verify the result. Node-based interaction is combined
+with screenshot reading; one blocked screen does not erase another's result.
+This requires a USB-connected Android device and a computer with `adb`, scrcpy,
+`ffmpeg`, and the model CLI. It is not a phone-only background assistant.
+
+Some controls, login/consent screens and device-specific behavior are unsupported.
+Repeated model calls have significant latency and context cost. Simultaneous
+human use of the primary screen, calls and physical USB recovery need separate
+validation; do not infer them from software checks. No sending, payment,
+deletion, root, global display changes or primary-screen worker input is allowed.
+
+To enable, build and sign the source-only companion, grant its accessibility and
+notification access on the device, and invoke `mopu-multiscreen` for an explicitly
+authorized task. Existing integrations use the background execution mode and
+`phone_multiscreen`. To roll back, stop the job and service, restore source while
+preserving task history, and disable the companion if desired. Never rewind the
+queue or clear unknown external outcomes. See [setup, evidence boundaries and
+rollback](docs/MULTISCREEN.md).
+
+The computer console includes a **多屏** view with side-by-side previews and per-screen takeover/return. See the [MCP calling guide](docs/MULTISCREEN_MCP.md) for tools, ownership and limitations.

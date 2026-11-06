@@ -6,4 +6,4 @@ The existing software suite covers exclusive control, lease revocation, task bud
 
 Physical input attribution, simultaneous human/agent use, incoming-call behavior and transport recovery need environment-specific acceptance. A passing unit test is not a physical-device result.
 
-See [whole-task validation](docs/VALIDATION-0.19.1.md) for scoped results and outstanding checks. No user screenshots, activity logs, application notes or runtime state are included as evidence in this repository.
+See [whole-task validation](docs/VALIDATION-0.19.1.md) and [experimental multiscreen](docs/MULTISCREEN.md) for scoped results and outstanding checks. No user screenshots, activity logs, application notes or runtime state are included as evidence in this repository.

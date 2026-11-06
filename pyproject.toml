@@ -12,6 +12,7 @@ license = "MIT"
 
 [project.scripts]
 mopu = "mopu.cli:main"
+mopu-multiscreen = "mopu.multiscreen_cli:main"
 phone-harness = "mopu.cli:main"
 
 [tool.setuptools.packages.find]

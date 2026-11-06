@@ -1,4 +1,4 @@
-"""Agent-neutral MCP adapter. It never starts or selects a model."""
+"""Agent-neutral queue adapter; multiscreen is an explicit model-execution opt-in."""
 import asyncio
 import contextlib
 import json
@@ -39,6 +39,10 @@ TOOLS = [
     {'name':'phone_finish','description':'Save results and release the phone. To mark verified, supply checks referring to broker-issued phone_harness_observation IDs from fresh reads after the last input. Otherwise the result is saved as unverified. Never use tool acknowledgements as proof. Store only minimal non-sensitive readbacks.',
      'inputSchema':schema({'result':TEXT,'blocked':{'type':'boolean','default':False},'required_milestones':{'type':'array','items':TEXT,'maxItems':20},'checks':{'type':'array','items':CHECK,'maxItems':20},'unresolved':{'type':'array','items':TEXT,'maxItems':20}}, ['result'])},
 ]
+
+
+TOOLS[0]['inputSchema']['properties']['execution_mode']={'type':'string','enum':['main','background'],'default':'main'}
+TOOLS.append({'name':'phone_multiscreen','description':'Explicit model-backed multiscreen start/status/stop, owned-display list and yield-only single/all takeover. Handback is human-only; parent lease revocation stops all work.', 'inputSchema':schema({'operation':{'type':'string','enum':['start','status','stop','list','takeover','takeover_all']},'instruction':TEXT,'job_id':TEXT,'display':{'type':'integer','minimum':1}},['operation'])})
 
 
 class Client:

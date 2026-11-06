@@ -39,6 +39,14 @@
           "minimum": 60,
           "maximum": 86400,
           "default": 28800
+        },
+        "execution_mode": {
+          "type": "string",
+          "enum": [
+            "main",
+            "background"
+          ],
+          "default": "main"
         }
       },
       "required": [
@@ -469,6 +477,40 @@
       },
       "required": [
         "result"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "phone_multiscreen",
+    "description": "Explicit model-backed multiscreen start/status/stop, owned-display list and yield-only single/all takeover. Handback is human-only; parent lease revocation stops all work.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "enum": [
+            "start",
+            "status",
+            "stop",
+            "list",
+            "takeover",
+            "takeover_all"
+          ]
+        },
+        "instruction": {
+          "type": "string"
+        },
+        "job_id": {
+          "type": "string"
+        },
+        "display": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "operation"
       ],
       "additionalProperties": false
     }

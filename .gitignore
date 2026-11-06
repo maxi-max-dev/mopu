@@ -17,3 +17,10 @@ backups/
 *.pem
 *.key
 !docs/console-demo.png
+
+# Local Android builds and signing material
+/android/multiscreen/build/
+*.apk
+*.aab
+*.jks
+*.keystore

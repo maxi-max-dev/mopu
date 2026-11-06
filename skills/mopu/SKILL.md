@@ -5,6 +5,16 @@ description: Operate an authorized USB Android phone through the shared Mopu MCP
 
 # Mopu
 
+## Experimental multiscreen opt-in
+
+The ordinary queue still does not start a model. The explicit `phone_multiscreen`
+operation is an exception: it starts a bounded model-assisted secondary-display
+job under the caller's existing background task lease. Use only for an authorized
+task, and follow [the multiscreen guide](../../docs/MULTISCREEN.md) for setup,
+safety limits and rollback. This does not grant independent control or permit
+external actions. Stop on revocation; never open another control route.
+
+
 ## Whole-task authorization (0.19, supersedes the per-stage workflow for new tasks)
 
 Use `phone_session` then `phone_start` for a current user-authorized task. Provide title/instruction or the original task_id, the user wording and unique authorization_id, whole-task max_calls and max_deliveries (0 unless sends are authorized). Duration defaults to 8 hours, max 24 hours. The broker selects an idle phone and the task atomically; follow with phone_wait, phone_tools and a fresh screen. No user priority/handback clicks and no 200-call renewal cycle. Do not preempt an active task.

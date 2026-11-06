@@ -58,6 +58,8 @@ class Device:
         self.observed_generation = None
         self.last_packet = 0
         self.on_disconnect = None
+        self.background_mode = False
+        self.prefer_background = os.environ.get("MOPU_BACKGROUND_ONLY") == "1"
         self.active_touch = None
         self.panel_lock = asyncio.Lock()
         self.panel_sampled = None
@@ -173,10 +175,34 @@ class Device:
         atomic(self.state / 'quiet-verification.json', result)
         return result
 
+    async def prepare_mode(self, mode):
+        if mode not in ('main','background'): raise ValueError('execution_mode必须为main或background')
+        target = mode == 'background'
+        panel_before = None
+        if self.connected and self.background_mode != target:
+            if target: panel_before = await self.sample_panel()
+            await self.close()
+        self.prefer_background = target
+        self.background_mode = target
+        if not self.connected: await self.connect()
+        if target and panel_before == 'on':
+            await self.shell('input','keyevent','KEYCODE_WAKEUP')
+        if panel_before is not None:
+            atomic(self.state/'last-mode-transition.json',{'at':now(),'target':mode,'panel_before':panel_before,'panel_restoration_requested':target and panel_before=='on'})
+
     async def connect(self):
         if self.connected:
             return
         self.error = None
+        if self.prefer_background:
+            try:
+                await self.acquire()
+                self.background_mode = True
+                self.connected = True
+                return
+            except Exception:
+                await self.close()
+                raise
         try:
             await self.acquire()
             await self.quiet()
@@ -462,6 +488,8 @@ class Device:
                 await packet(1,*last)
 
     async def backend(self, name=None, arguments=None, generation=None, guard=None, actor='助手'):
+        if self.background_mode:
+            raise PermissionError('当前为副屏后台模式，禁止主屏输入或UiAutomation重连；先结束副屏再显式恢复主屏会话')
         if not self.connected or not self.lockfile:
             raise RuntimeError('手机未连接')
         if name is not None and name not in ALLOWED:
